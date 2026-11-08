@@ -1,8 +1,18 @@
 @import "tailwindcss";
 
+/* Early-morning palette: deep night sky with a dawn glow on the horizon. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #070b1a;
+  --foreground: #eef1fb;
+  --muted: #8f9bbd;
+  --soft: #cdd4ea;
+  --card: rgba(255, 255, 255, 0.045);
+  --line: rgba(255, 255, 255, 0.1);
+  --dawn: #ffb37a;
+  --dawn-deep: #ff7a59;
+  --sky: #7aa2ff;
+  --ok: #6ee7a8;
+  --warn: #ffb4a2;
 }
 
 @theme inline {
@@ -12,15 +22,229 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.sky-bg {
+  background:
+    radial-gradient(120% 60% at 50% 115%, rgba(255, 140, 90, 0.28), transparent 60%),
+    radial-gradient(90% 50% at 50% 100%, rgba(255, 190, 130, 0.12), transparent 70%),
+    linear-gradient(180deg, #060918 0%, #0b1230 55%, #1a1838 100%);
+}
+
+/* ---- Buttons ---- */
+.btn-primary,
+.btn-ghost,
+.btn-end,
+.btn-wake {
+  cursor: pointer;
+  border-radius: 9999px;
+  font-weight: 500;
+  transition:
+    transform 0.15s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-primary:active,
+.btn-ghost:active,
+.btn-end:active,
+.btn-wake:active {
+  transform: scale(0.97);
+}
+.btn-primary:focus-visible,
+.btn-ghost:focus-visible,
+.btn-end:focus-visible,
+.btn-wake:focus-visible {
+  outline: 3px solid var(--sky);
+  outline-offset: 3px;
+}
+
+.btn-primary {
+  padding: 1rem 2rem;
+  font-size: clamp(1.1rem, 2.2vw, 1.35rem);
+  color: #1b0f08;
+  background: linear-gradient(135deg, var(--dawn), var(--dawn-deep));
+  box-shadow: 0 10px 40px -10px rgba(255, 122, 89, 0.6);
+}
+.btn-primary:hover {
+  box-shadow: 0 14px 50px -10px rgba(255, 122, 89, 0.8);
+}
+
+.btn-ghost {
+  padding: 0.9rem 1.75rem;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  color: var(--foreground);
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.btn-end {
+  padding: 1rem 3rem;
+  font-size: clamp(1.1rem, 2.2vw, 1.35rem);
+  color: #fff;
+  background: rgba(255, 90, 90, 0.18);
+  border: 1px solid rgba(255, 120, 120, 0.45);
+}
+.btn-end:hover {
+  background: rgba(255, 90, 90, 0.3);
+}
+
+.btn-wake {
+  padding: clamp(1.25rem, 3vw, 1.75rem) clamp(3rem, 10vw, 5.5rem);
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  font-weight: 600;
+  color: #1b0f08;
+  background: #fff6ec;
+  box-shadow: 0 0 0 0 rgba(255, 246, 236, 0.7);
+  animation: wake-pulse 1.6s ease-out infinite;
+}
+
+/* ---- Time input ---- */
+.time-input {
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  font-size: clamp(2rem, 7vw, 3rem);
+  font-weight: 300;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  color-scheme: dark;
+}
+.time-input:focus {
+  outline: 3px solid var(--sky);
+  outline-offset: 2px;
+}
+
+/* ---- Brand dot ---- */
+.logo-dot {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 35%, #fff2dc, var(--dawn) 55%, var(--dawn-deep));
+  box-shadow: 0 0 18px rgba(255, 179, 122, 0.7);
+}
+
+/* ---- Ringing ---- */
+.ring-bg {
+  color: #fff8f0;
+  background:
+    radial-gradient(80% 60% at 50% 50%, rgba(255, 200, 140, 0.55), transparent 70%),
+    linear-gradient(160deg, #ff8a5c, #ff5e62 50%, #c2366f);
+  animation: ring-glow 1.2s ease-in-out infinite;
+}
+.ring-bg .text-\[var\(--muted\)\] {
+  color: rgba(255, 248, 240, 0.85);
+}
+.ring-label {
+  animation: ring-shake 1.2s ease-in-out infinite;
+}
+
+/* ---- Voice orb ---- */
+.orb-idle {
+  background: radial-gradient(circle at 35% 30%, #d9e2ff, #5a6fae 55%, #232c55);
+  opacity: 0.7;
+}
+.orb-listening {
+  background: radial-gradient(circle at 35% 30%, #e6edff, var(--sky) 50%, #2b3d8f);
+  box-shadow: 0 0 60px rgba(122, 162, 255, 0.45);
+}
+.orb-speaking {
+  background: radial-gradient(circle at 35% 30%, #fff3e2, var(--dawn) 45%, var(--dawn-deep) 75%, #9c3a56);
+  box-shadow: 0 0 80px rgba(255, 150, 100, 0.55);
+}
+
+.pulse-dot {
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}
+
+/* ---- Done ---- */
+.sun-rise {
+  width: clamp(6rem, 20vw, 9rem);
+  height: clamp(6rem, 20vw, 9rem);
+  border-radius: 9999px;
+  background: radial-gradient(circle at 50% 40%, #fff3e2, var(--dawn) 50%, var(--dawn-deep));
+  box-shadow: 0 0 100px rgba(255, 160, 100, 0.6);
+  animation: rise 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes wake-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 246, 236, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 28px rgba(255, 246, 236, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 246, 236, 0);
+  }
+}
+@keyframes ring-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.15);
+  }
+}
+@keyframes ring-shake {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0);
+  }
+  10%,
+  30%,
+  50% {
+    transform: rotate(-2deg);
+  }
+  20%,
+  40% {
+    transform: rotate(2deg);
+  }
+}
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes rise {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-wake,
+  .ring-bg,
+  .ring-label,
+  .pulse-dot,
+  .sun-rise {
+    animation: none;
+  }
 }
