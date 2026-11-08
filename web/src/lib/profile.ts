@@ -1,5 +1,3 @@
-import { promises as fs } from "fs";
-import path from "path";
 import { DEFAULT_VOICE, getPreset, type VoicePresetId } from "./voices";
 
 // One user per deployment (hackathon demo). Saved to web/data/profile.json, which is git-ignored
@@ -16,8 +14,6 @@ export type Profile = {
   aboutMe: string; // pasted from ChatGPT / Claude ("tell me everything you know about me") or typed
   language?: "en" | "es"; // optional so older saved setups still load
 };
-
-const FILE = path.join(process.cwd(), "data", "profile.json");
 
 export const DEFAULT_PROFILE: Profile = {
   name: "",
@@ -56,24 +52,15 @@ export function sanitizeProfile(input: Partial<Profile>): Profile {
   };
 }
 
-// On Vercel each person's setup lives in their own browser (localStorage "wake.profile") and is
-// sent with every request. The file is only a local-dev fallback.
+// Each person's setup lives only in their own browser (localStorage "wake.profile") and is sent
+// with every request. The server never falls back to someone else's saved setup: no profile in the
+// request means a blank default profile, so two people can never see each other's data.
 export async function getProfile(clientProfile?: Partial<Profile> | null): Promise<Profile> {
   if (clientProfile && typeof clientProfile === "object") return sanitizeProfile(clientProfile);
-  try {
-    return sanitizeProfile(JSON.parse(await fs.readFile(FILE, "utf8")));
-  } catch {
-    return DEFAULT_PROFILE;
-  }
+  return DEFAULT_PROFILE;
 }
 
+// Validates and echoes the setup back. Nothing is written server-side, on purpose (see above).
 export async function saveProfile(input: Partial<Profile>): Promise<Profile> {
-  const profile = sanitizeProfile(input);
-  try {
-    await fs.mkdir(path.dirname(FILE), { recursive: true });
-    await fs.writeFile(FILE, JSON.stringify(profile, null, 2));
-  } catch {
-    // Read-only filesystem on Vercel: the browser copy is the source of truth there.
-  }
-  return profile;
+  return sanitizeProfile(input);
 }
