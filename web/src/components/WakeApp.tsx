@@ -321,6 +321,36 @@ function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onE
     setPhase("idle");
   }
 
+  // Bedside mode: while an alarm is armed, keep the screen awake so the page (and its timer) isn't
+  // suspended. Re-acquired when the page becomes visible again; silently skipped where unsupported.
+  useEffect(() => {
+    if (phase !== "armed") return;
+    type Sentinel = { release: () => Promise<void> };
+    const nav = navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<Sentinel> } };
+    let lock: Sentinel | null = null;
+    let cancelled = false;
+    const acquire = async () => {
+      try {
+        if (!nav.wakeLock || document.visibilityState !== "visible") return;
+        const l = await nav.wakeLock.request("screen");
+        if (cancelled) void l.release();
+        else lock = l;
+      } catch {
+        // Not supported or not allowed (e.g. low battery mode); the alarm still works while the screen is on.
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void acquire();
+    };
+    void acquire();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      void lock?.release().catch(() => {});
+    };
+  }, [phase]);
+
   // Alarm watcher.
   useEffect(() => {
     if (phase !== "armed" || alarmAt === null) return;
