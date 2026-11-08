@@ -83,7 +83,11 @@ function profileTasks(p: Profile): Task[] {
   return p.priorities.map((t) => ({ title: t.title, due: addDaysToKey(today, offset[t.due]), priority: "high" as const }));
 }
 
-export async function getBriefing(clientProfile?: Partial<Profile> | null, googleEvents?: CalEvent[] | null): Promise<Briefing> {
+export async function getBriefing(
+  clientProfile?: Partial<Profile> | null,
+  googleEvents?: CalEvent[] | null,
+  calendarStatus?: string,
+): Promise<Briefing> {
   const profile = await getProfile(clientProfile);
   const preset = getPreset(profile.voice);
   const [weather, calendar] = await Promise.all([
@@ -101,7 +105,12 @@ export async function getBriefing(clientProfile?: Partial<Profile> | null, googl
     name: profile.name || "there",
     date: spokenDate(),
     weather_summary: weatherSummary(weather),
-    calendar_summary: calendarSummary(calendar.events),
+    // Google was connected but its 1-hour token lapsed and there's no iCal to fall back on: say so
+    // instead of "wide open", so the coach never plans around a calendar it couldn't read.
+    calendar_summary:
+      !googleEvents && calendarStatus === "expired" && !profile.icalUrl && !profile.demoCalendar
+        ? "I couldn't reach your Google Calendar this morning, so I don't have today's events. Ask what's on today."
+        : calendarSummary(calendar.events),
     tasks_summary: tasksSummary(tasks),
     coach_name: profile.coachName,
     personality: preset.personality,

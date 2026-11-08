@@ -31,6 +31,16 @@ export function isGoogleConnected(): boolean {
   return read() !== null;
 }
 
+/** Connected once, but the 1-hour token has lapsed (or Google rejected it). */
+export function isGoogleExpired(): boolean {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE) ?? "null") as Stored | null;
+    return Boolean(s?.token) && read() === null;
+  } catch {
+    return false;
+  }
+}
+
 export function disconnectGoogle() {
   try {
     localStorage.removeItem(STORE);
@@ -105,7 +115,9 @@ export async function getGoogleEvents(): Promise<GoogleEvent[] | null> {
       headers: { Authorization: `Bearer ${s.token}` },
     });
     if (res.status === 401) {
-      disconnectGoogle();
+      try {
+        localStorage.setItem(STORE, JSON.stringify({ ...s, expiresAt: 0 }));
+      } catch {}
       return null;
     }
     if (!res.ok) return null;

@@ -12,13 +12,13 @@ export async function GET() {
 
 // POST { profile } — the browser sends its saved setup (localStorage "wake.profile").
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { profile?: Partial<Profile>; calendarEvents?: unknown };
-  return respond(body.profile ?? null, clientEvents(body.calendarEvents));
+  const body = (await req.json().catch(() => ({}))) as { profile?: Partial<Profile>; calendarEvents?: unknown; calendarStatus?: string };
+  return respond(body.profile ?? null, clientEvents(body.calendarEvents), body.calendarStatus);
 }
 
-async function respond(profile: Partial<Profile> | null, events: CalEvent[] | null = null) {
+async function respond(profile: Partial<Profile> | null, events: CalEvent[] | null = null, calendarStatus?: string) {
   try {
-    return NextResponse.json(await getBriefing(profile, events));
+    return NextResponse.json(await getBriefing(profile, events, calendarStatus));
   } catch (err) {
     // Should never happen (each source has its own fallback), but never 500 the alarm.
     console.error("[briefing] hard fallback:", err);

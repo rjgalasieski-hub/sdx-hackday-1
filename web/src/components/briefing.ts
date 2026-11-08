@@ -1,6 +1,6 @@
 // Client-side helpers for the briefing. Keys match CONTRACT.md exactly.
 import { BRIEFING_TIMEOUT_MS } from "./config";
-import { getGoogleEvents } from "./googleCalendar";
+import { getGoogleEvents, isGoogleExpired } from "./googleCalendar";
 import type { Profile } from "@/lib/profile";
 import { getPreset } from "@/lib/voices";
 
@@ -61,6 +61,12 @@ export function fallbackBriefing(): Briefing {
 /** Fetches /api/briefing. Never throws: on any failure it returns local demo text. */
 export async function fetchBriefing(): Promise<BriefingResult> {
   const fallback = fallbackBriefing();
+  // Google gets its own budget so a slow calendar can't eat the briefing request's timeout.
+  const calendarEvents = await Promise.race([
+    getGoogleEvents(),
+    new Promise<null>((r) => setTimeout(() => r(null), 4_000)),
+  ]).catch(() => null);
+  const calendarStatus = calendarEvents ? "ok" : isGoogleExpired() ? "expired" : "none";
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), BRIEFING_TIMEOUT_MS);
   try {
@@ -73,7 +79,7 @@ export async function fetchBriefing(): Promise<BriefingResult> {
       cache: "no-store",
       signal: controller.signal,
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ profile, calendarEvents: await getGoogleEvents() }),
+      body: JSON.stringify({ profile, calendarEvents, calendarStatus }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = (await res.json()) as Partial<Record<string, unknown>>;
