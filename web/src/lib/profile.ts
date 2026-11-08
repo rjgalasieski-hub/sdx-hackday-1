@@ -13,6 +13,7 @@ export type Profile = {
   coachName: string;
   aboutMe: string; // pasted from ChatGPT / Claude ("tell me everything you know about me") or typed
   language?: "en" | "es"; // optional so older saved setups still load
+  demoCalendar?: boolean; // true only when the user picked "Use a demo calendar"
 };
 
 export const DEFAULT_PROFILE: Profile = {
@@ -49,6 +50,7 @@ export function sanitizeProfile(input: Partial<Profile>): Profile {
     coachName: clip(input.coachName, 24) || getPreset(voice).defaultName,
     aboutMe: clip(input.aboutMe, 4000),
     language: input.language === "es" ? "es" : "en",
+    demoCalendar: input.demoCalendar === true,
   };
 }
 

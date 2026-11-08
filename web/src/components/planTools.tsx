@@ -9,6 +9,7 @@ import { haptic } from "./haptics";
 export type Block = { title: string; start: string; end: string; kind: "routine" | "event" | "deadline" | "task" };
 export type PlanState = { blocks: Block[]; unscheduled: string[]; source: string; ms: number; locked: boolean; note?: string };
 type Adjustment = { title: string; start?: string; minutes?: number; remove?: boolean };
+type AgentTask = { title: string; minutes?: number; priority?: "high" | "medium" | "low" };
 
 export const PROFILE_KEY = "wake.profile";
 export function savedProfile(): unknown {
@@ -36,15 +37,19 @@ export function usePlanTools() {
   const [plan, setPlan] = useState<PlanState | null>(null);
   const [planning, setPlanning] = useState(false);
   const planRef = useRef<PlanState | null>(null);
+  const tasksRef = useRef<AgentTask[]>([]);
 
   const reset = useCallback(() => {
     planRef.current = null;
+    tasksRef.current = [];
     setPlan(null);
   }, []);
 
   const clientTools = useMemo(
     () => ({
-      build_plan: async (params: { adjustments?: Adjustment[] }) => {
+      build_plan: async (params: { adjustments?: Adjustment[]; tasks?: AgentTask[] }) => {
+        // Keep the task list from earlier in the call if a re-plan only sends adjustments.
+        if (Array.isArray(params?.tasks) && params.tasks.length) tasksRef.current = params.tasks;
         setPlanning(true);
         try {
           const res = await fetch("/api/plan", {
@@ -54,6 +59,7 @@ export function usePlanTools() {
               adjustments: Array.isArray(params?.adjustments) ? params.adjustments : [],
               profile: savedProfile(),
               calendarEvents: await getGoogleEvents(),
+              tasks: tasksRef.current,
             }),
           });
           const data = await res.json();

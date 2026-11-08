@@ -4,19 +4,37 @@ import { Daytona, type Sandbox } from "@daytonaio/sdk";
 import { getCalendar, type CalEvent } from "./calendar";
 import { getProfile, type Profile } from "./profile";
 import { getTasks } from "./tasks";
-import { planDay, type Adjustment, type Block, type PlanInput, type PlanResult } from "./planner-core";
+import { planDay, type Adjustment, type Block, type PlanInput, type PlanResult, type PlanTask } from "./planner-core";
 
 const LA = "America/Los_Angeles";
 const hhmm = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-GB", { timeZone: LA, hour: "2-digit", minute: "2-digit", hour12: false });
 
-export async function buildPlanInput(adjustments: Adjustment[], clientProfile?: Partial<Profile> | null, googleEvents?: CalEvent[] | null): Promise<PlanInput> {
+export async function buildPlanInput(
+  adjustments: Adjustment[],
+  clientProfile?: Partial<Profile> | null,
+  googleEvents?: CalEvent[] | null,
+  agentTasks: PlanTask[] = [],
+): Promise<PlanInput> {
   const profile = await getProfile(clientProfile);
-  const calendar = googleEvents ? { events: googleEvents } : await getCalendar(profile.icalUrl);
+  const calendar = googleEvents
+    ? { events: googleEvents }
+    : profile.icalUrl || profile.demoCalendar
+      ? await getCalendar(profile.icalUrl)
+      : { events: [] as CalEvent[] };
   const fileTasks = getTasks().tasks.slice(0, 3);
   // The user's own priorities win; the sample tasks only fill in when they skipped that step.
-  const mine = profile.priorities.map((p) => ({ title: p.title, priority: "high" as const }));
-  const tasks = mine.length ? mine : fileTasks.map((t) => ({ title: t.title, priority: t.priority }));
+  // Tasks the coach gathered on the call (from what they said + their backstory) come first, then
+  // the priorities from setup. Sample tasks only for someone who chose the demo calendar.
+  const mine = [...agentTasks, ...profile.priorities.map((p) => ({ title: p.title, priority: "high" as const }))];
+  const seen = new Set<string>();
+  const unique = mine.filter((t) => {
+    const k = t.title.toLowerCase().trim();
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  const tasks = unique.length ? unique : profile.demoCalendar ? fileTasks.map((t) => ({ title: t.title, priority: t.priority })) : [];
   return {
     wake: profile.wakeTime,
     dayEnd: "22:30",
@@ -68,8 +86,13 @@ async function runInDaytona(input: PlanInput): Promise<PlanResult> {
 
 export type PlanResponse = PlanResult & { source: "daytona" | "local"; ms: number; spoken: string };
 
-export async function makePlan(adjustments: Adjustment[] = [], clientProfile?: Partial<Profile> | null, googleEvents?: CalEvent[] | null): Promise<PlanResponse> {
-  const input = await buildPlanInput(adjustments, clientProfile, googleEvents);
+export async function makePlan(
+  adjustments: Adjustment[] = [],
+  clientProfile?: Partial<Profile> | null,
+  googleEvents?: CalEvent[] | null,
+  agentTasks: PlanTask[] = [],
+): Promise<PlanResponse> {
+  const input = await buildPlanInput(adjustments, clientProfile, googleEvents, agentTasks);
   const t0 = Date.now();
   let result: PlanResult;
   let source: PlanResponse["source"] = "daytona";

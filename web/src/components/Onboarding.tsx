@@ -402,6 +402,7 @@ export function CalendarStep({
 
   async function connect() {
     setChoice("google");
+    update({ demoCalendar: false });
     if (!googleConfigured()) {
       setShowIcal(true);
       return;
@@ -481,7 +482,7 @@ export function CalendarStep({
               inputMode="url"
               placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
               value={profile.icalUrl ?? ""}
-              onChange={(e) => update({ icalUrl: e.target.value.trim() })}
+              onChange={(e) => update({ icalUrl: e.target.value.trim(), demoCalendar: false })}
             />
             <details className="group rounded-xl border border-[var(--line)] bg-black/40 px-4 py-3 text-sm">
               <summary className="flex list-none items-center justify-between font-medium text-[var(--muted)] [&::-webkit-details-marker]:hidden">
@@ -503,7 +504,7 @@ export function CalendarStep({
         onClick={() => {
           setChoice("demo");
           disconnectGoogle();
-          update({ icalUrl: "" });
+          update({ icalUrl: "", demoCalendar: true });
           onSkip();
         }}
       >

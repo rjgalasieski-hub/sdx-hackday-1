@@ -61,7 +61,7 @@ export function calendarSummary(events: CalEvent[]): string {
 }
 
 export function tasksSummary(tasks: Task[]): string {
-  if (!tasks.length) return "Your to-do list is clear. Nice.";
+  if (!tasks.length) return "They have not listed any priorities yet. Ask what has to get done today before planning.";
   const today = laDateKey();
   const [top, ...rest] = tasks;
   let text = `Top priority: ${lowerFirst(top.title)}, due ${spokenDue(top.due, today)}.`;
@@ -88,10 +88,15 @@ export async function getBriefing(clientProfile?: Partial<Profile> | null, googl
   const preset = getPreset(profile.voice);
   const [weather, calendar] = await Promise.all([
     getWeather(),
-    googleEvents ? Promise.resolve({ events: googleEvents }) : getCalendar(profile.icalUrl),
+    googleEvents
+      ? Promise.resolve({ events: googleEvents })
+      : profile.icalUrl || profile.demoCalendar
+        ? getCalendar(profile.icalUrl)
+        : Promise.resolve({ events: [] as CalEvent[] }),
   ]);
   const mine = profileTasks(profile);
-  const tasks = mine.length ? mine : getTasks().tasks;
+  // Sample tasks only for someone who chose the demo; real users get their own or nothing yet.
+  const tasks = mine.length ? mine : profile.demoCalendar ? getTasks().tasks : [];
   return {
     name: profile.name || "there",
     date: spokenDate(),
