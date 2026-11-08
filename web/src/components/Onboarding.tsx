@@ -443,7 +443,7 @@ export function CalendarStep({
             <CalendarDays className="size-6 text-[#1a73e8]" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-medium">Google Calendar</p>
+            <p className="font-medium">{googleConfigured() ? "Google Calendar" : "Your calendar"}</p>
             <p className="text-sm text-[var(--muted)]">
               {gState === "connected" ? gMsg || "Connected. Read-only." : googleConfigured() ? "Read-only. Sign in with Google." : "Read-only, via your secret iCal link."}
             </p>
@@ -460,7 +460,7 @@ export function CalendarStep({
               disabled={gState === "connecting"}
               aria-busy={gState === "connecting"}
             >
-              {gState === "connecting" ? "Connecting…" : "Connect"}
+              {gState === "connecting" ? "Connecting…" : googleConfigured() ? "Connect" : "Add link"}
             </button>
           )}
         </div>
@@ -902,7 +902,7 @@ function DoneStep({ profile, calendarChoice }: { profile: Profile; calendarChoic
   const preset = getPreset(profile.voice);
   const rows: [string, string][] = [
     ["Wake time", `${formatWakeTime(profile.wakeTime)} · ${formatDays(profile.days)}`],
-    ["Calendar", calendarChoice === "google" && (profile.icalUrl || isGoogleConnected()) ? "Google Calendar connected" : "Sample day"],
+    ["Calendar", calendarChoice === "google" && (profile.icalUrl || isGoogleConnected()) ? (profile.icalUrl ? "Calendar linked" : "Google Calendar connected") : "Sample day"],
     [
       "Priorities",
       profile.priorities.filter((p) => p.title.trim()).length

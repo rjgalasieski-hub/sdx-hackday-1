@@ -16,9 +16,13 @@ type GoogleOAuth = {
   accounts: { oauth2: { initTokenClient: (cfg: { client_id: string; scope: string; callback: (r: TokenResponse) => void; error_callback?: (e: { type: string; message?: string }) => void }) => { requestAccessToken: (o?: { prompt?: string }) => void } } };
 };
 
-export const googleConfigured = () => Boolean(CLIENT_ID);
+// Google sign-in is switched off for the hackathon (test users only until Google verifies the app).
+// Flip to true to bring "Connect Google Calendar" back; everything below still works.
+const GOOGLE_ENABLED = false;
+export const googleConfigured = () => GOOGLE_ENABLED && Boolean(CLIENT_ID);
 
 function read(): Stored | null {
+  if (!GOOGLE_ENABLED) return null;
   try {
     const s = JSON.parse(localStorage.getItem(STORE) ?? "null") as Stored | null;
     return s && s.token && s.expiresAt > Date.now() + 60_000 ? s : null;
@@ -33,6 +37,7 @@ export function isGoogleConnected(): boolean {
 
 /** Connected once, but the 1-hour token has lapsed (or Google rejected it). */
 export function isGoogleExpired(): boolean {
+  if (!GOOGLE_ENABLED) return false;
   try {
     const s = JSON.parse(localStorage.getItem(STORE) ?? "null") as Stored | null;
     return Boolean(s?.token) && read() === null;
