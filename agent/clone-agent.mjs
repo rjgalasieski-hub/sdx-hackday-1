@@ -11,6 +11,23 @@ if (!key) {
   process.exit(1);
 }
 const config = JSON.parse(readFileSync(new URL("./agent-config.json", import.meta.url), "utf8"));
+delete config._knowledge_base_note;
+
+// Upload the knowledge base doc into your account and attach it.
+const kbText = readFileSync(new URL("./knowledge/morning-playbook.md", import.meta.url), "utf8");
+const kbRes = await fetch("https://api.elevenlabs.io/v1/convai/knowledge-base/text", {
+  method: "POST",
+  headers: { "xi-api-key": key, "Content-Type": "application/json" },
+  body: JSON.stringify({ text: kbText, name: "Wake Morning Playbook" }),
+});
+const kb = await kbRes.json().catch(() => ({}));
+if (kbRes.ok && kb.id) {
+  config.conversation_config.agent.prompt.knowledge_base = [
+    { type: "text", name: "Wake Morning Playbook", id: kb.id, usage_mode: "prompt" },
+  ];
+} else {
+  console.warn("Knowledge base upload failed, creating the agent without it:", JSON.stringify(kb.detail ?? kb));
+}
 const res = await fetch("https://api.elevenlabs.io/v1/convai/agents/create", {
   method: "POST",
   headers: { "xi-api-key": key, "Content-Type": "application/json" },
