@@ -97,18 +97,45 @@ export async function connectGoogleCalendar(): Promise<{ ok: boolean; count?: nu
 
 /** Today's events (America/Los_Angeles) from the primary calendar, or null if not connected / failed. */
 export async function getGoogleEvents(): Promise<GoogleEvent[] | null> {
+  return fetchRange(0, 0, 25);
+}
+
+/** The next six days (tomorrow on), read-only, as one line per day for the agent's week_summary. */
+export async function getGoogleWeekSummary(): Promise<string> {
+  const events = await fetchRange(1, 6, 60);
+  if (!events) return "Calendar not connected, so you don't know the rest of the week.";
+  const tz = "America/Los_Angeles";
+  const dayKey = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: tz });
+  const lines: string[] = [];
+  for (let i = 1; i <= 6; i++) {
+    const d = new Date(Date.now() + i * 86_400_000);
+    const key = d.toLocaleDateString("en-CA", { timeZone: tz });
+    const label = d.toLocaleDateString("en-US", { timeZone: tz, weekday: "long", month: "short", day: "numeric" });
+    const items = events
+      .filter((e) => (e.allDay ? e.start.slice(0, 10) : dayKey(e.start)) === key)
+      .map((e) =>
+        e.allDay
+          ? `${e.title} (all day)`
+          : `${new Date(e.start).toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" })} ${e.title}`,
+      );
+    lines.push(`${label}: ${items.length ? items.join(", ") : "nothing scheduled"}`);
+  }
+  return lines.join(". ");
+}
+
+async function fetchRange(fromDay: number, toDay: number, max: number): Promise<GoogleEvent[] | null> {
   const s = read();
   if (!s) return null;
   const tz = "America/Los_Angeles";
-  const day = new Date().toLocaleDateString("en-CA", { timeZone: tz });
-  // Today in the browser's local day (the demo laptop is in LA); the API returns times in `tz`.
+  const dayAt = (offset: number) => new Date(Date.now() + offset * 86_400_000).toLocaleDateString("en-CA", { timeZone: tz });
+  // Days in the browser's local time (the demo laptop is in LA); the API returns times in `tz`.
   const params = new URLSearchParams({
     singleEvents: "true",
     orderBy: "startTime",
-    maxResults: "25",
+    maxResults: String(max),
     timeZone: tz,
-    timeMin: new Date(`${day}T00:00:00`).toISOString(),
-    timeMax: new Date(`${day}T23:59:59`).toISOString(),
+    timeMin: new Date(`${dayAt(fromDay)}T00:00:00`).toISOString(),
+    timeMax: new Date(`${dayAt(toDay)}T23:59:59`).toISOString(),
   });
   try {
     const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {

@@ -1,6 +1,6 @@
 // Client-side helpers for the briefing. Keys match CONTRACT.md exactly.
 import { BRIEFING_TIMEOUT_MS } from "./config";
-import { getGoogleEvents, isGoogleExpired } from "./googleCalendar";
+import { getGoogleEvents, getGoogleWeekSummary, isGoogleExpired } from "./googleCalendar";
 import type { Profile } from "@/lib/profile";
 import { getPreset } from "@/lib/voices";
 
@@ -16,6 +16,7 @@ export const BRIEFING_KEYS = [
   "voice_id",
   "language",
   "language_name",
+  "week_summary",
 ] as const;
 
 export type BriefingKey = (typeof BRIEFING_KEYS)[number];
@@ -54,6 +55,7 @@ export function fallbackBriefing(): Briefing {
     voice_id: preset.voiceId,
     language: p?.language === "es" ? "es" : "en",
     language_name: p?.language === "es" ? "Spanish" : "English",
+    week_summary: "You don't have the rest of the week right now.",
     source: "fallback",
   };
 }
@@ -67,6 +69,11 @@ export async function fetchBriefing(): Promise<BriefingResult> {
     new Promise<null>((r) => setTimeout(() => r(null), 4_000)),
   ]).catch(() => null);
   const calendarStatus = calendarEvents ? "ok" : isGoogleExpired() ? "expired" : "none";
+  const weekSummary = calendarEvents
+    ? await Promise.race([getGoogleWeekSummary(), new Promise<string>((r) => setTimeout(() => r(fallback.week_summary), 3_000))]).catch(
+        () => fallback.week_summary,
+      )
+    : fallback.week_summary;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), BRIEFING_TIMEOUT_MS);
   try {
@@ -91,6 +98,7 @@ export async function fetchBriefing(): Promise<BriefingResult> {
       else if (typeof v === "number" || typeof v === "boolean") briefing[key] = String(v);
       else missing++;
     }
+    briefing.week_summary = weekSummary;
     briefing.source = typeof json.source === "string" ? json.source : "live";
     return { briefing, fromFallback: missing === BRIEFING_KEYS.length };
   } catch (err) {
