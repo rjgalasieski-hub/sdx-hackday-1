@@ -4,7 +4,7 @@ import type { Profile } from "@/lib/profile";
 import { PlanCard, usePlanTools, warmPlanner } from "./planTools";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import type { ConnectionType, DisconnectionDetails, MessagePayload } from "@elevenlabs/react";
-import { AlarmClock, Mic, MicOff, Settings2, Zap } from "lucide-react";
+import { AlarmClock, CalendarDays, CloudSun, Mic, MicOff, Settings2, Target, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlarmSound, createAudioContext, unlockAudio } from "./alarm-sound";
 import { haptic } from "./haptics";
@@ -15,6 +15,7 @@ import {
   toDynamicVariables,
   type Briefing,
   type BriefingResult,
+  type CalendarEvent,
   type Details,
 } from "./briefing";
 import { BriefingCards } from "./BriefingCards";
@@ -125,6 +126,17 @@ function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onE
   const [briefing, setBriefing] = useState<Briefing>(() => fallbackBriefing());
   const [usingFallback, setUsingFallback] = useState(false);
   const [details, setDetails] = useState<Details>({});
+  // Idle Home "day at a glance": the user's own weather / next event / top priority, loaded once.
+  const [glance, setGlance] = useState<Details | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void fetchDetails().then((d) => {
+      if (alive) setGlance(d);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [profile.priorities, profile.icalUrl]);
   const [preparing, setPreparing] = useState(false);
   const [convError, setConvError] = useState<string | null>(null);
   const [lastLine, setLastLine] = useState<{ role: "user" | "agent"; text: string } | null>(null);
@@ -565,13 +577,15 @@ function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onE
           <Logo size={128} pulse={phase === "armed"} />
           <div>
             <h1 className="font-display text-[clamp(1.75rem,4vw,2.5rem)] font-bold leading-tight">
-              {phase === "armed" ? `${coachName} is on it.` : `Morning, ${profile.name}.`}
+              {phase === "armed" ? `${coachName} is on it.` : `${greeting()}, ${profile.name}.`}
             </h1>
             <p className="mt-1 text-[var(--muted)]">
-              {phase === "armed" ? "Leave this open. Sound is unlocked." : `${coachName} calls at your wake time.`}
+              {phase === "armed" ? "Leave this open. Sound is unlocked." : homeSubtitle(profile, glance, coachName)}
             </p>
           </div>
         </div>
+
+        {phase !== "armed" && <Glance details={glance} coachName={coachName} />}
 
         {!AGENT_ID && <ErrorBox message={MISSING_AGENT_MSG} />}
 
@@ -596,9 +610,6 @@ function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onE
               <Zap className="size-4 text-[var(--gold)]" aria-hidden />
               Demo: ring in {Math.round(DEMO_DELAY_MS / 1000)} seconds
             </button>
-            <button onClick={onEdit} className="btn-text sm:hidden">
-              Edit setup
-            </button>
           </div>
         )}
 
@@ -610,6 +621,95 @@ function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onE
 }
 
 // ---- Pieces ----
+
+function greeting(d = new Date()) {
+  const h = d.getHours();
+  return h < 12 ? "Morning" : h < 17 ? "Afternoon" : "Evening";
+}
+
+/** Next upcoming event from the user's Google calendar (or the first all-day one), skipping anything already over. */
+function nextEvent(details: Details | null): CalendarEvent | null {
+  const events = details?.events ?? [];
+  const now = Date.now();
+  const upcoming = events
+    .filter((e) => {
+      const end = e.end ? Date.parse(e.end) : e.start ? Date.parse(e.start) : NaN;
+      return Number.isNaN(end) || end >= now || e.allDay;
+    })
+    .sort((a, b) => (a.start ? Date.parse(a.start) : 0) - (b.start ? Date.parse(b.start) : 0));
+  return upcoming[0] ?? null;
+}
+
+function eventTime(e: CalendarEvent) {
+  if (e.allDay || !e.start) return "All day";
+  const d = new Date(e.start);
+  if (Number.isNaN(d.getTime())) return "";
+  return formatTimeShort(d).replace(":00", "");
+}
+
+/** "Rings 7:30 tomorrow" vs "Rings 7:30 today" from the saved wake time. */
+function ringsLine(wakeTime: string) {
+  const at = nextOccurrence(wakeTime);
+  if (at === null) return `Rings ${formatWakeTime(wakeTime)}`;
+  const sameDay = new Date(at).toDateString() === new Date().toDateString();
+  return `Rings ${formatWakeTime(wakeTime)} ${sameDay ? "today" : "tomorrow"}`;
+}
+
+/** One specific line built from real data; never the generic "calls at your wake time". */
+function homeSubtitle(profile: Profile, details: Details | null, coachName: string) {
+  const n = profile.priorities.filter((p) => p.title.trim()).length;
+  const ev = nextEvent(details);
+  const parts: string[] = [];
+  if (n) parts.push(`${n} ${n === 1 ? "priority" : "priorities"}`);
+  if (ev) parts.push(`your ${eventTime(ev)} ${ev.title}`.replace("your All day", "your all-day"));
+  const has = parts.length ? `${coachName} has ${parts.join(" and ")}.` : `${coachName} has your morning.`;
+  return `${has} ${ringsLine(profile.wakeTime)}.`;
+}
+
+function Glance({ details, coachName }: { details: Details | null; coachName: string }) {
+  const w = details?.weather;
+  const ev = nextEvent(details);
+  const top = details?.tasks?.[0];
+  const loading = details === null;
+  const rows: { icon: React.ReactNode; label: string; value: string; muted?: boolean }[] = [
+    {
+      icon: <CloudSun className="size-4" aria-hidden />,
+      label: "Weather",
+      value: loading
+        ? "Checking the sky"
+        : w?.tempF !== undefined
+          ? `${Math.round(w.tempF)}°${w.conditions ? `, ${w.conditions.toLowerCase()}` : ""}${w.highF !== undefined ? ` · high ${Math.round(w.highF)}°` : ""}`
+          : `${coachName} will read it on the call`,
+      muted: !loading && w?.tempF === undefined,
+    },
+    {
+      icon: <CalendarDays className="size-4" aria-hidden />,
+      label: "Next up",
+      value: loading ? "Reading your calendar" : ev ? `${eventTime(ev)} ${ev.title}`.trim() : `No calendar yet. ${coachName} will plan from your priorities.`,
+      muted: !loading && !ev,
+    },
+    {
+      icon: <Target className="size-4" aria-hidden />,
+      label: "Top priority",
+      value: top ? top.title : `No priorities yet. ${coachName} will ask on the call.`,
+      muted: !top,
+    },
+  ];
+  return (
+    <div className="fade-in-1 card w-full px-5 py-3 text-left">
+      <p className="label mb-1">Your day at a glance</p>
+      <ul className="divide-y divide-white/10">
+        {rows.map((r) => (
+          <li key={r.label} className="flex items-center gap-3 py-2.5">
+            <span className="text-[var(--gold)]">{r.icon}</span>
+            <span className="w-24 shrink-0 text-xs uppercase tracking-wider text-[var(--muted)]">{r.label}</span>
+            <span className={`line-clamp-2 min-w-0 flex-1 text-sm leading-snug ${r.muted ? "text-[var(--muted)]" : "font-medium"}`}>{r.value}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function Screen({ children, sun = 0.3, className = "" }: { children: React.ReactNode; sun?: number; className?: string }) {
   return (

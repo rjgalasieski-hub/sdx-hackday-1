@@ -150,7 +150,7 @@ export function Onboarding({ initial, onDone, onCancel }: Props) {
           else next();
         }}
       >
-        <div className="flex flex-1 flex-col gap-6">
+        <div className="flex flex-1 flex-col gap-6 pb-28 sm:pb-0">
           {step === "welcome" && <Welcome />}
           {step === "name" && (
             <Question title={`What should ${APP_NAME} call you?`}>
@@ -824,8 +824,13 @@ function DoneStep({ profile, calendarChoice }: { profile: Profile; calendarChoic
   const preset = getPreset(profile.voice);
   const rows: [string, string][] = [
     ["Wake time", `${formatWakeTime(profile.wakeTime)} · ${formatDays(profile.days)}`],
-    ["Calendar", calendarChoice === "google" && (profile.icalUrl || isGoogleConnected()) ? "Google Calendar connected" : "Demo calendar"],
-    ["Priorities", profile.priorities.filter((p) => p.title.trim()).length ? `${profile.priorities.filter((p) => p.title.trim()).length} this week` : "None yet"],
+    ["Calendar", calendarChoice === "google" && (profile.icalUrl || isGoogleConnected()) ? "Google Calendar connected" : "Sample day"],
+    [
+      "Priorities",
+      profile.priorities.filter((p) => p.title.trim()).length
+        ? `${profile.priorities.filter((p) => p.title.trim()).length} this week`
+        : `${profile.coachName || preset.defaultName} will ask on the call`,
+    ],
     ["Coach", `${profile.coachName || preset.defaultName} · ${preset.label} voice`],
   ];
   return (
