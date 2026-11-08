@@ -2,6 +2,15 @@
 
 Context: hackathon build, judged live on a projector and in a 2-minute Loom. Every choice favors **a flawless demo** over completeness. Track: Open. User: "A college student who sleeps through their 8 AMs." Finish line: "Wake calls their phone at wake-up time, plans the day with them, and texts them the final plan."
 
+## BRAND (RJ, 13:50, overrides everything below on color)
+Logo: `web/public/brand/wake-logo.png` (glowing amber-to-orange alarm clock with a ribbon "W", on pure black). Icons already wired (`src/app/icon.png`, `apple-icon.png`, `manifest.ts`).
+- **Background: pure black `#000000`** (the logo sits on black; RJ's asset wins over MASTER's "avoid pure black").
+- **Brand gradient:** gold `#FFC21A` → amber `#FFA000` → orange `#FF6A00`, top-left to bottom-right, the same as the logo. Use it on the primary button, the logo mark, progress fill and the selected-card ring.
+- **Glow:** the logo's soft orange outer glow (`0 0 24px rgba(255,140,0,.45)`) on the logo, the primary CTA and the ringing alarm screen only. Nowhere else.
+- **Text:** white `#FFFFFF` primary, `rgba(255,255,255,.62)` secondary. Surfaces `#0D0D0D` / `#161616`, borders `rgba(255,255,255,.08)`.
+- Indigo is dropped; the voice orb uses the brand gradient.
+- The "sunrise" glow rising from the bottom stays, but in brand orange on black.
+
 ## The product in one line
 Set up once in about 60 seconds. Every morning at your time, **Wake calls your phone**, gets you up, walks your day (weather, calendar, priorities), adjusts when you push back, and texts you the plan.
 
