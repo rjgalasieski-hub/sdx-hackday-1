@@ -6,6 +6,8 @@
 
 Built at the SDx SDSU Voice Agent Hackathon, November 8, 2026.
 
+**Try it:** [sdx-hackday-1.vercel.app](https://sdx-hackday-1.vercel.app) (Chrome, allow the mic) · QR code: [`demo/wake-qr.png`](demo/wake-qr.png)
+
 | | |
 |---|---|
 | **Track** | Open |
