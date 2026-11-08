@@ -416,7 +416,7 @@ function CalendarStep({
           <div className="min-w-0 flex-1">
             <p className="font-medium">Google Calendar</p>
             <p className="text-sm text-[var(--muted)]">
-              {gState === "connected" ? gMsg || "Connected. Read-only." : "Read-only. Sign in with Google."}
+              {gState === "connected" ? gMsg || "Connected. Read-only." : googleConfigured() ? "Read-only. Sign in with Google." : "Read-only, via your secret iCal link."}
             </p>
           </div>
           {gState === "connected" ? (
