@@ -1,6 +1,8 @@
 // Client-side helpers for the briefing. Keys match CONTRACT.md exactly.
 import { BRIEFING_TIMEOUT_MS } from "./config";
 import { getGoogleEvents } from "./googleCalendar";
+import type { Profile } from "@/lib/profile";
+import { getPreset } from "@/lib/voices";
 
 export const BRIEFING_KEYS = [
   "name",
@@ -29,22 +31,29 @@ function todayString() {
   });
 }
 
+// Used when /api/briefing times out. Built from this user's saved setup only: never a made-up
+// name, class or weather, so the coach doesn't brief someone on a day that isn't theirs.
 export function fallbackBriefing(): Briefing {
+  let p: Partial<Profile> | null = null;
+  try {
+    p = JSON.parse(localStorage.getItem("wake.profile") ?? "null");
+  } catch {}
+  const preset = getPreset(p?.voice);
+  const priorities = Array.isArray(p?.priorities) ? p.priorities.map((x) => x?.title).filter(Boolean) : [];
   return {
-    name: "there",
+    name: p?.name?.trim() || "there",
     date: todayString(),
-    weather_summary:
-      "It's about 64 degrees and partly cloudy right now, with a high of 71. Light layers should do it.",
-    calendar_summary:
-      "You have a class at 10 AM, lunch with the team at noon, and a project sync at 3 PM.",
-    tasks_summary:
-      "Your top priorities are finishing the hackathon demo, replying to two emails, and getting a workout in.",
-    coach_name: "Sunny",
-    personality: "Warm and playful, like a friend who already has coffee.",
-    about_me: "Nothing shared yet.",
-    voice_id: "cgSgspJ2msm6clMCkdW9",
-    language: "en",
-    language_name: "English",
+    weather_summary: "I couldn't grab the weather this morning, so take a quick look outside before you head out.",
+    calendar_summary: "I couldn't load your calendar this morning, so ask what's on today.",
+    tasks_summary: priorities.length
+      ? `Your priorities are ${priorities.join(", ")}.`
+      : "No priorities saved yet, so ask what matters most today.",
+    coach_name: p?.coachName?.trim() || preset.defaultName,
+    personality: preset.personality,
+    about_me: p?.aboutMe?.trim() || "Nothing shared yet.",
+    voice_id: preset.voiceId,
+    language: p?.language === "es" ? "es" : "en",
+    language_name: p?.language === "es" ? "Spanish" : "English",
     source: "fallback",
   };
 }

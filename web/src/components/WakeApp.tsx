@@ -527,7 +527,7 @@ function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onE
           <PlanCard plan={planTools.plan} planning={planTools.planning} />
           <BriefingCards briefing={briefing} details={details} />
           {usingFallback && (
-            <p className="text-sm text-[var(--muted)]">Showing sample data (couldn&apos;t load /api/briefing).</p>
+            <p className="text-sm text-[var(--muted)]">Couldn&apos;t load today&apos;s briefing. Your coach is working from your saved setup.</p>
           )}
 
           <button onClick={endTalk} className="btn-end">

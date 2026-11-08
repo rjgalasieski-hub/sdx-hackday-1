@@ -77,12 +77,16 @@ export function usePlanTools() {
       lock_plan: async (params: { note?: string }) => {
         const current = planRef.current;
         if (!current) return "There's no plan yet. Call build_plan first.";
-        const res = await fetch("/api/plan/lock", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ blocks: current.blocks }),
-        });
-        if (!res.ok) return "Saving failed. Tell the user the plan is on screen anyway.";
+        try {
+          const res = await fetch("/api/plan/lock", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ blocks: current.blocks }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        } catch {
+          return "Saving failed. Tell the user the plan is on screen anyway.";
+        }
         const next = { ...current, locked: true, note: params?.note };
         planRef.current = next;
         setPlan(next);

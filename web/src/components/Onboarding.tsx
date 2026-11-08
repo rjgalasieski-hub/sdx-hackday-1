@@ -1,6 +1,6 @@
 "use client";
-// First-run setup: 0 welcome, 1 name, 2 phone, 3 wake time, 4 calendar, 5 priorities,
-// 6 voice + coach name, 6b context import, 7 done. Saves to localStorage on every step and
+// First-run setup: welcome, name, wake time, calendar, priorities, voice + coach name,
+// context import, done. Saves to localStorage on every step and
 // POSTs to /api/profile at the end (best effort).
 import type { Profile } from "@/lib/profile";
 import { VOICE_PRESETS, getPreset, type VoicePresetId } from "@/lib/voices";
