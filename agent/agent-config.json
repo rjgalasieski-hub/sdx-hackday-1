@@ -1,0 +1,149 @@
+{
+  "name": "Wake - Morning Briefing",
+  "conversation_config": {
+    "agent": {
+      "first_message": "Good morning {{name}}! It's {{coach_name}}. You awake, or do you need a second?",
+      "language": "en",
+      "prompt": {
+        "prompt": "You are {{coach_name}}, a morning voice coach that gets a college student out of bed and ready for the day. {{name}} picked you and gave you that name. You just woke them up. Today is {{date}}.\n\nYour personality: {{personality}}\nStay in that personality the whole call.\n\nWhat you know about {{name}} (from their own notes or what ChatGPT or Claude knows about them; use it to make the plan personal, never read it back word for word):\n{{about_me}}\n\nToday's real data (only use this, never invent events, tasks, or weather):\n- Weather: {{weather_summary}}\n- Calendar: {{calendar_summary}}\n- Tasks: {{tasks_summary}}\n\nHow to run the conversation:\n1. After they answer your greeting, give the weather and what to wear in one or two sentences.\n2. Then today's calendar, the first thing on it and anything with a hard deadline. Keep it short.\n3. Then say \"give me one sec, building your day\" and call the build_plan tool with an empty adjustments list. Summarize the plan it returns in two or three sentences: the first block after getting ready, the most important task, and anything with a deadline. Don't read every block.\n4. Ask if they want to change anything. When they change their mind, call build_plan again with every adjustment so far (cumulative), then confirm only what changed. Never make up times yourself; the plan only comes from build_plan.\n5. When they're happy, call lock_plan, tell them it's locked and on their screen with calendar buttons, then end with one short line to get them moving.\n\nStyle:\n- You are talking out loud, not writing. Short sentences. At most two or three sentences per turn, then let them talk.\n- If they interrupt, stop and respond to what they said.\n- If they go off-topic, answer in one line, then steer back to getting their day set.\n- If they ask about something not in the data above (email, news, other days), say you don't have that yet and steer back to today.\n- Never use markdown, bullet points, emojis, or symbols. Say times naturally, like \"ten AM\".\n- If they say they want to sleep more, push back in your personality's style, then tell them what they'd miss.",
+        "llm": "gemini-2.0-flash-001",
+        "temperature": 0.6,
+        "tools": [
+          {
+            "type": "client",
+            "name": "build_plan",
+            "description": "Builds or rebuilds today's time-blocked plan from the user's real calendar and tasks. The scheduler runs in a Daytona sandbox. Call it once to make the first plan, and again every time the user changes anything, passing ALL adjustments made so far in this call (not just the newest one). Returns the plan as a short sentence to summarize out loud.",
+            "parameters": {
+              "description": "",
+              "dynamic_variable": "",
+              "is_omitted": false,
+              "type": "object",
+              "required": [],
+              "properties": {
+                "adjustments": {
+                  "description": "Every change the user asked for so far, cumulative. Empty array for the first plan.",
+                  "dynamic_variable": "",
+                  "constant_value": null,
+                  "is_omitted": false,
+                  "type": "array",
+                  "items": {
+                    "description": "One change to one block",
+                    "dynamic_variable": "",
+                    "is_omitted": false,
+                    "type": "object",
+                    "required": [
+                      "title"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "description": "Name of the event or task to change, or a new block to add, e.g. 'gym' or 'nap'",
+                        "enum": null,
+                        "is_system_provided": false,
+                        "dynamic_variable": "",
+                        "allowed_values": null,
+                        "allowed_values_dynamic_variable": "",
+                        "constant_value": "",
+                        "is_omitted": false
+                      },
+                      "start": {
+                        "type": "string",
+                        "description": "New start time in 24 hour HH:MM, e.g. '18:00'. Omit if not moving it.",
+                        "enum": null,
+                        "is_system_provided": false,
+                        "dynamic_variable": "",
+                        "allowed_values": null,
+                        "allowed_values_dynamic_variable": "",
+                        "constant_value": "",
+                        "is_omitted": false
+                      },
+                      "minutes": {
+                        "type": "number",
+                        "description": "New length in minutes. Omit to keep the current length.",
+                        "enum": null,
+                        "is_system_provided": false,
+                        "dynamic_variable": "",
+                        "allowed_values": null,
+                        "allowed_values_dynamic_variable": "",
+                        "constant_value": "",
+                        "is_omitted": false
+                      },
+                      "remove": {
+                        "type": "boolean",
+                        "description": "true to drop this block from today",
+                        "enum": null,
+                        "is_system_provided": false,
+                        "dynamic_variable": "",
+                        "allowed_values": null,
+                        "allowed_values_dynamic_variable": "",
+                        "constant_value": "",
+                        "is_omitted": false
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "expects_response": true,
+            "response_timeout_secs": 25
+          },
+          {
+            "type": "client",
+            "name": "lock_plan",
+            "description": "Locks in the latest plan from build_plan once the user agrees to it. Saves it and puts it on their screen with Add to Google Calendar buttons. Only call after the user says the plan works.",
+            "parameters": {
+              "description": "",
+              "dynamic_variable": "",
+              "is_omitted": false,
+              "type": "object",
+              "required": [],
+              "properties": {
+                "note": {
+                  "type": "string",
+                  "description": "Optional one-line note to show with the plan, e.g. 'Paper first, no excuses.'",
+                  "enum": null,
+                  "is_system_provided": false,
+                  "dynamic_variable": "",
+                  "allowed_values": null,
+                  "allowed_values_dynamic_variable": "",
+                  "constant_value": "",
+                  "is_omitted": false
+                }
+              }
+            },
+            "expects_response": true,
+            "response_timeout_secs": 15
+          }
+        ]
+      },
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {
+          "name": "RJ",
+          "coach_name": "Sunny",
+          "personality": "Warm and playful.",
+          "about_me": "Nothing yet.",
+          "date": "Sunday, November 8",
+          "weather_summary": "Sunny and 75.",
+          "calendar_summary": "Nothing on the calendar.",
+          "tasks_summary": "No tasks yet."
+        }
+      }
+    },
+    "tts": {
+      "voice_id": "cgSgspJ2msm6clMCkdW9",
+      "model_id": "eleven_flash_v2"
+    },
+    "conversation": {
+      "max_duration_seconds": 150
+    }
+  },
+  "platform_settings": {
+    "overrides": {
+      "conversation_config_override": {
+        "tts": {
+          "voice_id": true
+        }
+      }
+    }
+  }
+}
