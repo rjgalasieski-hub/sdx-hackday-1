@@ -1,6 +1,6 @@
 // Coach voice presets. The UI lists these; the call passes voiceId as a TTS override
 // and `personality` as a dynamic variable. Sample clips live in public/voices/<id>.mp3.
-export type VoicePresetId = "hype" | "sunny" | "calm" | "coach";
+export type VoicePresetId = "signature" | "hype" | "sunny" | "calm" | "coach";
 
 export type VoicePreset = {
   id: VoicePresetId;
@@ -13,6 +13,17 @@ export type VoicePreset = {
 };
 
 export const VOICE_PRESETS: VoicePreset[] = [
+  {
+    // Custom voice made with ElevenLabs Voice Design for Wake (not a stock library voice).
+    id: "signature",
+    label: "Signature",
+    tagline: "Designed for Wake",
+    defaultName: "Wren",
+    voiceId: "uZ50Ubxg5wgY62RReo7l",
+    personality:
+      "Warm, upbeat friend who has been up for an hour with coffee. Encouraging and a little playful, keeps it moving, never preachy.",
+    sample: "Morning! I'm your Wake coach, built just for this. Let's get you up and make today count.",
+  },
   {
     id: "hype",
     label: "Hype",
