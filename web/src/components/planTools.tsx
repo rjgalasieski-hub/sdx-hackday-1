@@ -1,7 +1,7 @@
 "use client";
 // Client tools the ElevenLabs agent calls mid-conversation (registered on the agent as
 // build_plan and lock_plan). The planner itself runs server-side in a Daytona sandbox.
-import { CalendarClock, CalendarPlus, Loader2, Lock } from "lucide-react";
+import { CalendarClock, CalendarPlus, Circle, Flag, Loader2, Lock } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getGoogleEvents } from "./googleCalendar";
 import { haptic } from "./haptics";
@@ -113,7 +113,13 @@ function clock(t: string) {
   return `${h % 12 || 12}:${pad(m)} ${h < 12 ? "AM" : "PM"}`;
 }
 
-const KIND_LABEL: Record<Block["kind"], string> = { routine: "Routine", event: "Event", deadline: "Due", task: "Task" };
+// How movable each block is: icon plus a text label, so it never relies on color alone.
+const KIND_TAG: Record<Block["kind"], { label: string; icon?: React.ReactNode }> = {
+  routine: { label: "Routine" },
+  event: { label: "Fixed · on your calendar", icon: <Lock className="size-3 text-[#f87171]" aria-hidden /> },
+  deadline: { label: "Deadline", icon: <Flag className="size-3 text-[var(--gold)]" aria-hidden /> },
+  task: { label: "Flexible", icon: <Circle className="size-3 text-[#60a5fa]" aria-hidden /> },
+};
 
 export function PlanCard({ plan, planning }: { plan: PlanState | null; planning: boolean }) {
   const locked = !!plan?.locked;
@@ -159,8 +165,9 @@ export function PlanCard({ plan, planning }: { plan: PlanState | null; planning:
               <span className={`block leading-snug ${b.kind === "deadline" ? "font-semibold text-[var(--gold)]" : ""}`}>
                 {b.kind === "deadline" ? `Due: ${b.title}` : b.title}
               </span>
-              <span className="tnum block text-xs text-[var(--faint)]">
-                {KIND_LABEL[b.kind]}
+              <span className="tnum flex items-center gap-1 text-xs text-[var(--faint)]">
+                {KIND_TAG[b.kind].icon}
+                {KIND_TAG[b.kind].label}
                 {b.end !== b.start ? ` · until ${clock(b.end)}` : ""}
               </span>
             </span>
