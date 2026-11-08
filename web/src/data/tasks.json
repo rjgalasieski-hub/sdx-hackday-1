@@ -1,0 +1,7 @@
+[
+  { "title": "Finish the market research paper for Marketing 370", "dueInDays": 0, "priority": "high" },
+  { "title": "Send the SDx sponsor follow-up emails", "dueInDays": 1, "priority": "high" },
+  { "title": "Study for the accounting midterm", "dueInDays": 3, "priority": "medium" },
+  { "title": "Submit the internship application", "dueInDays": 5, "priority": "medium" },
+  { "title": "Pay the phone bill", "dueInDays": 6, "priority": "low" }
+]
