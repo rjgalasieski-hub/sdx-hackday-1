@@ -81,8 +81,8 @@ function profileTasks(p: Profile): Task[] {
   return p.priorities.map((t) => ({ title: t.title, due: addDaysToKey(today, offset[t.due]), priority: "high" as const }));
 }
 
-export async function getBriefing(): Promise<Briefing> {
-  const profile = await getProfile();
+export async function getBriefing(clientProfile?: Partial<Profile> | null): Promise<Briefing> {
+  const profile = await getProfile(clientProfile);
   const preset = getPreset(profile.voice);
   const [weather, calendar] = await Promise.all([getWeather(), getCalendar(profile.icalUrl)]);
   const tasks = [...profileTasks(profile), ...getTasks().tasks];

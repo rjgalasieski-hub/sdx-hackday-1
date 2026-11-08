@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { Daytona, type Sandbox } from "@daytonaio/sdk";
 import { getCalendar } from "./calendar";
-import { getProfile } from "./profile";
+import { getProfile, type Profile } from "./profile";
 import { getTasks } from "./tasks";
 import { planDay, type Adjustment, type Block, type PlanInput, type PlanResult } from "./planner-core";
 
@@ -10,8 +10,8 @@ const LA = "America/Los_Angeles";
 const hhmm = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-GB", { timeZone: LA, hour: "2-digit", minute: "2-digit", hour12: false });
 
-export async function buildPlanInput(adjustments: Adjustment[]): Promise<PlanInput> {
-  const profile = await getProfile();
+export async function buildPlanInput(adjustments: Adjustment[], clientProfile?: Partial<Profile> | null): Promise<PlanInput> {
+  const profile = await getProfile(clientProfile);
   const calendar = await getCalendar(profile.icalUrl);
   const fileTasks = getTasks().tasks.slice(0, 3);
   const tasks = [
@@ -40,15 +40,15 @@ function getSandbox(): Promise<Sandbox> {
   return sandboxPromise;
 }
 
-let plannerSource: string | null = null;
-async function plannerCode(input: PlanInput): Promise<string> {
-  plannerSource ??= (await fs.readFile(path.join(process.cwd(), "src/lib/planner-core.ts"), "utf8")).replace(/^export /gm, "");
-  return `${plannerSource}\nconsole.log(JSON.stringify(planDay(${JSON.stringify(input)})));`;
+// Ship the compiled planDay function itself into the sandbox, so it works in the deployed bundle
+// (no source files there) and the sandbox always runs exactly the code the server has.
+function plannerCode(input: PlanInput): string {
+  return `const planDay = ${planDay.toString()};\nconsole.log(JSON.stringify(planDay(${JSON.stringify(input)})));`;
 }
 
 async function runInDaytona(input: PlanInput): Promise<PlanResult> {
   const sandbox = await getSandbox();
-  const res = await sandbox.process.codeRun(await plannerCode(input), undefined, 15);
+  const res = await sandbox.process.codeRun(plannerCode(input), undefined, 15);
   if (res.exitCode !== 0) throw new Error(`planner exited ${res.exitCode}: ${res.result.slice(0, 200)}`);
   const line = res.result.trim().split("\n").pop() ?? "";
   return JSON.parse(line) as PlanResult;
@@ -56,8 +56,8 @@ async function runInDaytona(input: PlanInput): Promise<PlanResult> {
 
 export type PlanResponse = PlanResult & { source: "daytona" | "local"; ms: number; spoken: string };
 
-export async function makePlan(adjustments: Adjustment[] = []): Promise<PlanResponse> {
-  const input = await buildPlanInput(adjustments);
+export async function makePlan(adjustments: Adjustment[] = [], clientProfile?: Partial<Profile> | null): Promise<PlanResponse> {
+  const input = await buildPlanInput(adjustments, clientProfile);
   const t0 = Date.now();
   let result: PlanResult;
   let source: PlanResponse["source"] = "daytona";
@@ -95,7 +95,11 @@ export function spokenPlan(blocks: Block[], unscheduled: string[]): string {
 const LOCK_FILE = path.join(process.cwd(), "data", "plan.json");
 export async function lockPlan(blocks: Block[]) {
   const plan = { lockedAt: new Date().toISOString(), date: new Date().toLocaleDateString("en-CA", { timeZone: LA }), blocks };
-  await fs.mkdir(path.dirname(LOCK_FILE), { recursive: true });
-  await fs.writeFile(LOCK_FILE, JSON.stringify(plan, null, 2));
+  try {
+    await fs.mkdir(path.dirname(LOCK_FILE), { recursive: true });
+    await fs.writeFile(LOCK_FILE, JSON.stringify(plan, null, 2));
+  } catch {
+    // Read-only on Vercel; the locked plan lives in the browser there.
+  }
   return plan;
 }

@@ -50,7 +50,17 @@ export async function fetchBriefing(): Promise<BriefingResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), BRIEFING_TIMEOUT_MS);
   try {
-    const res = await fetch("/api/briefing", { cache: "no-store", signal: controller.signal });
+    let profile: unknown = null;
+    try {
+      profile = JSON.parse(localStorage.getItem("wake.profile") ?? "null");
+    } catch {}
+    const res = await fetch("/api/briefing", {
+      method: "POST",
+      cache: "no-store",
+      signal: controller.signal,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ profile }),
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = (await res.json()) as Partial<Record<string, unknown>>;
     const briefing = { ...fallback } as Briefing;

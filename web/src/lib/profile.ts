@@ -53,7 +53,10 @@ export function sanitizeProfile(input: Partial<Profile>): Profile {
   };
 }
 
-export async function getProfile(): Promise<Profile> {
+// On Vercel each person's setup lives in their own browser (localStorage "wake.profile") and is
+// sent with every request. The file is only a local-dev fallback.
+export async function getProfile(clientProfile?: Partial<Profile> | null): Promise<Profile> {
+  if (clientProfile && typeof clientProfile === "object") return sanitizeProfile(clientProfile);
   try {
     return sanitizeProfile(JSON.parse(await fs.readFile(FILE, "utf8")));
   } catch {
@@ -63,7 +66,11 @@ export async function getProfile(): Promise<Profile> {
 
 export async function saveProfile(input: Partial<Profile>): Promise<Profile> {
   const profile = sanitizeProfile(input);
-  await fs.mkdir(path.dirname(FILE), { recursive: true });
-  await fs.writeFile(FILE, JSON.stringify(profile, null, 2));
+  try {
+    await fs.mkdir(path.dirname(FILE), { recursive: true });
+    await fs.writeFile(FILE, JSON.stringify(profile, null, 2));
+  } catch {
+    // Read-only filesystem on Vercel: the browser copy is the source of truth there.
+  }
   return profile;
 }

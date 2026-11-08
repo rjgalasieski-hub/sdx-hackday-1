@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
 import { getBriefing } from "@/lib/briefing";
+import type { Profile } from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  return respond(null);
+}
+
+// POST { profile } — the browser sends its saved setup (localStorage "wake.profile").
+export async function POST(req: Request) {
+  const body = (await req.json().catch(() => ({}))) as { profile?: Partial<Profile> };
+  return respond(body.profile ?? null);
+}
+
+async function respond(profile: Partial<Profile> | null) {
   try {
-    return NextResponse.json(await getBriefing());
+    return NextResponse.json(await getBriefing(profile));
   } catch (err) {
     // Should never happen (each source has its own fallback), but never 500 the alarm.
     console.error("[briefing] hard fallback:", err);

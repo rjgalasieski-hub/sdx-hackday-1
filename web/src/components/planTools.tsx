@@ -7,8 +7,22 @@ export type Block = { title: string; start: string; end: string; kind: "routine"
 export type PlanState = { blocks: Block[]; unscheduled: string[]; source: string; ms: number; locked: boolean; note?: string };
 type Adjustment = { title: string; start?: string; minutes?: number; remove?: boolean };
 
+export const PROFILE_KEY = "wake.profile";
+export function savedProfile(): unknown {
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function warmPlanner() {
-  void fetch("/api/plan", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).catch(() => {});
+  void fetch("/api/plan", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ profile: savedProfile() }),
+  }).catch(() => {});
 }
 
 export function usePlanTools() {
@@ -29,7 +43,7 @@ export function usePlanTools() {
           const res = await fetch("/api/plan", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ adjustments: Array.isArray(params?.adjustments) ? params.adjustments : [] }),
+            body: JSON.stringify({ adjustments: Array.isArray(params?.adjustments) ? params.adjustments : [], profile: savedProfile() }),
           });
           const data = await res.json();
           const next: PlanState = { blocks: data.blocks, unscheduled: data.unscheduled, source: data.source, ms: data.ms, locked: false };
