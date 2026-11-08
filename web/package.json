@@ -11,6 +11,7 @@
   "dependencies": {
     "@daytonaio/sdk": "^0.230.0",
     "@elevenlabs/react": "^1.21.1",
+    "lucide-react": "^1.70.0",
     "next": "15.3.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

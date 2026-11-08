@@ -1,8 +1,10 @@
 "use client";
 
+import type { Profile } from "@/lib/profile";
 import { PlanCard, usePlanTools, warmPlanner } from "./planTools";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import type { ConnectionType, DisconnectionDetails, MessagePayload } from "@elevenlabs/react";
+import { AlarmClock, Mic, MicOff, Settings2, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlarmSound, createAudioContext, unlockAudio } from "./alarm-sound";
 import {
@@ -16,7 +18,10 @@ import {
 } from "./briefing";
 import { BriefingCards } from "./BriefingCards";
 import { Clock } from "./Clock";
-import { AGENT_ID, APP_NAME, APP_TAGLINE, DEMO_DELAY_MS } from "./config";
+import { AGENT_ID, APP_NAME, DEMO_DELAY_MS } from "./config";
+import { Logo, Wordmark } from "./Logo";
+import { Onboarding } from "./Onboarding";
+import { formatDays, formatWakeTime, isComplete, loadProfile } from "./profile-store";
 import { formatTimeShort, useNow } from "./useNow";
 import { VoiceOrb } from "./VoiceOrb";
 
@@ -46,17 +51,48 @@ function friendlyError(raw: string | undefined): string {
   return msg;
 }
 
+/** Gate: first visit (no saved setup) runs onboarding; after that the alarm app. */
 export default function WakeApp() {
+  const [mounted, setMounted] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setProfile(loadProfile());
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-black">
+        <Logo size={88} />
+      </div>
+    );
+  }
+
+  if (!isComplete(profile) || editing) {
+    return (
+      <Onboarding
+        key={editing ? "edit" : "first"}
+        initial={editing ? profile : null}
+        onDone={(p) => {
+          setProfile(p);
+          setEditing(false);
+        }}
+        onCancel={editing ? () => setEditing(false) : undefined}
+      />
+    );
+  }
+
   return (
     <ConversationProvider>
-      <WakeInner />
+      <WakeInner profile={profile} onEdit={() => setEditing(true)} />
     </ConversationProvider>
   );
 }
 
-function WakeInner() {
+function WakeInner({ profile, onEdit }: { profile: Profile; onEdit: () => void }) {
   const [phase, setPhase] = useState<Phase>("idle");
-  const [alarmTime, setAlarmTime] = useState("07:00");
   const [alarmAt, setAlarmAt] = useState<number | null>(null);
   const [mic, setMic] = useState<MicState>("unknown");
   const [audioWarning, setAudioWarning] = useState<string | null>(null);
@@ -77,6 +113,8 @@ function WakeInner() {
   const retriedRef = useRef(false);
   const dynVarsRef = useRef<Record<string, string>>({});
   const endedByUserRef = useRef(false);
+
+  const coachName = profile.coachName || briefing.coach_name || APP_NAME;
 
   const planTools = usePlanTools();
   const conversation = useConversation({
@@ -214,7 +252,7 @@ function WakeInner() {
   }
 
   function onSetAlarm() {
-    const at = nextOccurrence(alarmTime);
+    const at = nextOccurrence(profile.wakeTime);
     if (at) arm(at);
   }
 
@@ -286,6 +324,7 @@ function WakeInner() {
   if (phase === "ringing") {
     return (
       <Ringing
+        coachName={coachName}
         onWake={wakeUp}
         warning={audioWarning}
         onUnmute={() => {
@@ -297,6 +336,7 @@ function WakeInner() {
   }
 
   if (phase === "talking") {
+    const live = status === "connected" && !convError;
     const label = convError
       ? "Not connected"
       : preparing
@@ -304,34 +344,35 @@ function WakeInner() {
         : status === "connected"
           ? isSpeaking
             ? "Speaking"
-            : "Listening, go ahead and talk"
+            : "Listening"
           : status === "error"
             ? "Not connected"
             : "Connecting";
+    const hasPlan = !!planTools.plan || planTools.planning;
     return (
-      <Screen>
-        <Header right={<StatusPill label={label} live={status === "connected" && !convError} />} />
-        <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center gap-8 px-4 pb-10 pt-2 sm:px-8">
-          <div className="flex flex-col items-center gap-5 pt-2">
+      <Screen sun={0.7}>
+        <Header right={<StatusPill label={label} live={live} speaking={live && isSpeaking} />} />
+        <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center gap-6 px-4 pb-10 pt-2 sm:px-8">
+          <div className={`flex flex-col items-center gap-4 ${hasPlan ? "pt-0" : "pt-4"}`}>
             <VoiceOrb
               active={status === "connected"}
               speaking={status === "connected" && isSpeaking}
               getInputVolume={conversation.getInputVolume}
               getOutputVolume={conversation.getOutputVolume}
             />
-            <h2 className="text-center text-[clamp(1.75rem,4.5vw,3rem)] font-light">
-              Good morning{briefing.name && briefing.name !== "there" ? `, ${briefing.name}` : ""}.
-            </h2>
-            <p className="text-center text-[clamp(1rem,2vw,1.35rem)] text-[var(--muted)]">
-              {briefing.date}
-            </p>
+            <div className="text-center">
+              <p className="font-display text-[clamp(1.5rem,3.5vw,2.25rem)] font-bold leading-tight">{coachName}</p>
+              <p className="text-[var(--muted)]">
+                {live ? (isSpeaking ? "Speaking" : "Listening, go ahead and talk") : label}
+              </p>
+            </div>
             {lastLine && !convError && (
               <p
-                className="max-w-3xl text-center text-[clamp(1.05rem,2.2vw,1.5rem)] leading-snug text-[var(--soft)]"
+                className="max-w-3xl text-center text-[clamp(1.1rem,2.2vw,1.5rem)] leading-snug"
                 aria-live="polite"
               >
-                <span className="mr-2 text-sm uppercase tracking-[0.18em] text-[var(--muted)]">
-                  {lastLine.role === "agent" ? APP_NAME : "You"}
+                <span className="mr-2 text-xs uppercase tracking-[0.18em] text-[var(--gold)]">
+                  {lastLine.role === "agent" ? coachName : "You"}
                 </span>
                 {lastLine.text.length > 220 ? `${lastLine.text.slice(0, 220)}…` : lastLine.text}
               </p>
@@ -354,9 +395,7 @@ function WakeInner() {
           <PlanCard plan={planTools.plan} planning={planTools.planning} />
           <BriefingCards briefing={briefing} details={details} />
           {usingFallback && (
-            <p className="text-sm text-[var(--muted)]">
-              Showing sample data (couldn&apos;t load /api/briefing).
-            </p>
+            <p className="text-sm text-[var(--muted)]">Showing sample data (couldn&apos;t load /api/briefing).</p>
           )}
 
           <button onClick={endTalk} className="btn-end">
@@ -369,49 +408,76 @@ function WakeInner() {
 
   if (phase === "done") {
     return (
-      <Screen>
+      <Screen sun={1}>
         <Header />
-        <main className="flex flex-1 flex-col items-center justify-center gap-8 px-4 text-center">
-          <div className="sun-rise" aria-hidden />
-          <h2 className="text-[clamp(2.5rem,7vw,5rem)] font-extralight">You&apos;re up.</h2>
-          <p className="text-[clamp(1.1rem,2.4vw,1.6rem)] text-[var(--muted)]">Go have a great day.</p>
+        <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-8 px-4 pb-12 text-center">
+          <div className="rise flex flex-col items-center gap-5">
+            <Logo size={120} />
+            <h2 className="font-display text-[clamp(2.75rem,7vw,5rem)] font-extrabold leading-none">
+              You&apos;re <span className="brand-text">up.</span>
+            </h2>
+            <p className="text-[clamp(1.1rem,2.2vw,1.4rem)] text-[var(--muted)]">
+              {planTools.plan?.locked ? "Your day is locked. Go get it." : "Go have a great day."}
+            </p>
+          </div>
           <PlanCard plan={planTools.plan} planning={false} />
           <button onClick={reset} className="btn-primary">
-            Set another alarm
+            Set tomorrow&apos;s alarm
           </button>
         </main>
       </Screen>
     );
   }
 
-  // idle + armed
+  // idle + armed = Home
   return (
-    <Screen>
-      <Header />
-      <main className="flex flex-1 flex-col items-center justify-center gap-10 px-4 pb-12 text-center">
-        <Clock />
+    <Screen sun={phase === "armed" ? 0.5 : 0.3}>
+      <Header
+        right={
+          <button onClick={onEdit} className="btn-text" aria-label="Edit setup">
+            <Settings2 className="size-5" aria-hidden />
+            <span className="hidden sm:inline">Edit setup</span>
+          </button>
+        }
+      />
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-8 px-4 pb-10 text-center">
+        <div className="fade-in flex flex-col items-center gap-4">
+          <Logo size={128} pulse={phase === "armed"} />
+          <div>
+            <h1 className="font-display text-[clamp(1.75rem,4vw,2.5rem)] font-bold leading-tight">
+              {phase === "armed" ? `${coachName} is on it.` : `Morning, ${profile.name}.`}
+            </h1>
+            <p className="mt-1 text-[var(--muted)]">
+              {phase === "armed" ? "Leave this open. Sound is unlocked." : `${coachName} calls at your wake time.`}
+            </p>
+          </div>
+        </div>
 
         {!AGENT_ID && <ErrorBox message={MISSING_AGENT_MSG} />}
 
         {phase === "armed" && alarmAt !== null ? (
           <Armed alarmAt={alarmAt} onCancel={cancelAlarm} onRingNow={ring} />
         ) : (
-          <div className="flex w-full max-w-md flex-col items-center gap-4">
-            <label htmlFor="alarm" className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">
-              Wake me at
-            </label>
-            <input
-              id="alarm"
-              type="time"
-              value={alarmTime}
-              onChange={(e) => setAlarmTime(e.target.value)}
-              className="time-input"
-            />
-            <button onClick={onSetAlarm} className="btn-primary w-full">
-              Set alarm
+          <div className="flex w-full flex-col items-center gap-3">
+            <div className="card flex w-full items-center justify-between gap-4 px-5 py-4 text-left">
+              <div>
+                <p className="label">Next wake-up</p>
+                <p className="tnum font-display text-[clamp(2.25rem,8vw,3rem)] font-bold leading-none">
+                  {formatWakeTime(profile.wakeTime)}
+                </p>
+                <p className="mt-1 text-sm text-[var(--muted)]">{formatDays(profile.days)}</p>
+              </div>
+              <AlarmClock className="size-9 text-[var(--gold)]" aria-hidden />
+            </div>
+            <button onClick={onSetAlarm} className="btn-primary w-full" style={{ minHeight: 60 }}>
+              Set my alarm
             </button>
             <button onClick={onDemo} className="btn-ghost w-full">
+              <Zap className="size-4 text-[var(--gold)]" aria-hidden />
               Demo: ring in {Math.round(DEMO_DELAY_MS / 1000)} seconds
+            </button>
+            <button onClick={onEdit} className="btn-text sm:hidden">
+              Edit setup
             </button>
           </div>
         )}
@@ -425,27 +491,30 @@ function WakeInner() {
 
 // ---- Pieces ----
 
-function Screen({ children }: { children: React.ReactNode }) {
-  return <div className="sky-bg flex min-h-dvh flex-col">{children}</div>;
+function Screen({ children, sun = 0.3 }: { children: React.ReactNode; sun?: number }) {
+  return (
+    <div className="sunrise flex min-h-dvh flex-col" style={{ "--sun": sun } as React.CSSProperties}>
+      {children}
+    </div>
+  );
 }
 
 function Header({ right }: { right?: React.ReactNode }) {
   return (
-    <header className="flex items-center justify-between px-5 py-5 sm:px-8">
-      <div className="flex items-center gap-3">
-        <span className="logo-dot" aria-hidden />
-        <span className="text-xl font-medium tracking-wide">{APP_NAME}</span>
-        <span className="hidden text-[var(--muted)] sm:inline">{APP_TAGLINE}</span>
-      </div>
+    <header className="flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 sm:px-8">
+      <Wordmark size={32} />
       {right}
     </header>
   );
 }
 
-function StatusPill({ label, live }: { label: string; live: boolean }) {
+function StatusPill({ label, live, speaking }: { label: string; live: boolean; speaking: boolean }) {
   return (
-    <div className="flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--card)] px-4 py-2 text-sm sm:text-base">
-      <span className={`size-2.5 rounded-full ${live ? "bg-[var(--ok)] pulse-dot" : "bg-[var(--muted)]"}`} />
+    <div className="flex items-center gap-2 rounded-full border border-[var(--line-strong)] bg-[var(--surface)] px-3.5 py-2 text-sm">
+      <span
+        className={`size-2.5 rounded-full ${live ? "pulse-dot" : ""}`}
+        style={{ background: live ? (speaking ? "var(--amber)" : "var(--ok)") : "var(--faint)" }}
+      />
       {label}
     </div>
   );
@@ -455,7 +524,7 @@ function ErrorBox({ message, children }: { message: string; children?: React.Rea
   return (
     <div
       role="alert"
-      className="flex w-full max-w-2xl flex-col items-center gap-4 rounded-3xl border border-[var(--warn)]/40 bg-[var(--warn)]/10 px-6 py-5 text-center text-[clamp(1rem,1.8vw,1.2rem)]"
+      className="flex w-full max-w-2xl flex-col items-center gap-4 rounded-2xl border border-[rgba(255,120,120,.4)] bg-[rgba(255,80,80,.1)] px-6 py-5 text-center text-[clamp(1rem,1.8vw,1.15rem)]"
     >
       <p>{message}</p>
       {children && <div className="flex flex-wrap justify-center gap-3">{children}</div>}
@@ -466,20 +535,24 @@ function ErrorBox({ message, children }: { message: string; children?: React.Rea
 function MicNote({ mic }: { mic: MicState }) {
   if (mic === "denied") {
     return (
-      <p className="max-w-md text-[var(--warn)]">
-        Microphone blocked. Allow it from the address bar so you can talk to {APP_NAME}.
+      <p className="flex max-w-md items-center gap-2 text-[var(--warn)]">
+        <MicOff className="size-4 shrink-0" aria-hidden />
+        Microphone blocked. Allow it from the address bar so you can talk to your coach.
       </p>
     );
   }
   if (mic === "unsupported") {
     return (
-      <p className="max-w-md text-[var(--warn)]">
-        No microphone access here. Open the app on localhost or over HTTPS.
-      </p>
+      <p className="max-w-md text-[var(--warn)]">No microphone access here. Open the app on localhost or over HTTPS.</p>
     );
   }
-  if (mic === "granted") return <p className="text-sm text-[var(--muted)]">Mic ready</p>;
-  if (mic === "asking") return <p className="text-sm text-[var(--muted)]">Allow the microphone so we can talk in the morning</p>;
+  if (mic === "granted")
+    return (
+      <p className="flex items-center gap-2 text-sm text-[var(--muted)]">
+        <Mic className="size-4 text-[var(--ok)]" aria-hidden /> Mic ready
+      </p>
+    );
+  if (mic === "asking") return <p className="text-sm text-[var(--muted)]">Allow the microphone so you can talk in the morning</p>;
   return null;
 }
 
@@ -499,13 +572,13 @@ function Armed({
   const s = remaining % 60;
   const countdown = h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
   return (
-    <div className="flex w-full max-w-md flex-col items-center gap-4">
-      <div className="rounded-3xl border border-[var(--line)] bg-[var(--card)] px-8 py-6">
-        <p className="text-sm uppercase tracking-[0.2em] text-[var(--muted)]">Alarm set</p>
-        <p className="mt-1 text-[clamp(2rem,6vw,3rem)] font-light tabular-nums">
+    <div className="flex w-full flex-col items-center gap-3">
+      <div className="card card-selected w-full px-6 py-5" style={{ boxShadow: "var(--glow)" }}>
+        <p className="label">Alarm set</p>
+        <p className="tnum font-display text-[clamp(2.5rem,9vw,3.5rem)] font-bold leading-none">
           {formatTimeShort(new Date(alarmAt))}
         </p>
-        <p className="mt-1 text-[var(--muted)] tabular-nums">Rings in {countdown}</p>
+        <p className="tnum mt-2 text-[var(--muted)]">Rings in {countdown}</p>
       </div>
       <div className="flex w-full gap-3">
         <button onClick={onCancel} className="btn-ghost flex-1">
@@ -520,27 +593,31 @@ function Armed({
 }
 
 function Ringing({
+  coachName,
   onWake,
   warning,
   onUnmute,
 }: {
+  coachName: string;
   onWake: () => void;
   warning: string | null;
   onUnmute: () => void;
 }) {
   return (
     <div
-      className="ring-bg flex min-h-dvh flex-col items-center justify-center gap-10 px-4 text-center"
+      className="sunrise flex min-h-dvh flex-col items-center justify-center gap-8 px-4 py-10 text-center sm:gap-10"
+      style={{ "--sun": 1 } as React.CSSProperties}
       onClick={warning ? onUnmute : undefined}
     >
-      <p className="ring-label text-[clamp(1.1rem,3vw,1.75rem)] font-medium uppercase tracking-[0.35em]">
-        Wake up
-      </p>
-      <Clock size="lg" />
-      <button onClick={onWake} className="btn-wake">
+      <Logo size={168} pulse />
+      <div className="flex flex-col items-center gap-2">
+        <p className="text-sm font-medium uppercase tracking-[0.3em] text-[var(--gold)]">{coachName} is calling</p>
+        <Clock size="lg" />
+      </div>
+      <button onClick={onWake} className="btn-wake font-display">
         I&apos;m up
       </button>
-      {warning && <p className="text-lg">{warning}</p>}
+      {warning && <p className="text-lg text-[var(--muted)]">{warning}</p>}
     </div>
   );
 }

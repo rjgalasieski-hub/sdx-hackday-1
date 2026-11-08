@@ -42,3 +42,4 @@ next-env.d.ts
 
 # user profile (phone number)
 /data
+/.next-verify
