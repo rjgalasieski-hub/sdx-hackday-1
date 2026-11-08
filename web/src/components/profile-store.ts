@@ -16,6 +16,7 @@ export function emptyProfile(): Profile {
     voice: DEFAULT_VOICE,
     coachName: getPreset(DEFAULT_VOICE).defaultName,
     aboutMe: "",
+    language: "en",
   };
 }
 

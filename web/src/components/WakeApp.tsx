@@ -21,6 +21,7 @@ import { Clock } from "./Clock";
 import { AGENT_ID, APP_NAME, DEMO_DELAY_MS } from "./config";
 import { Logo, Wordmark } from "./Logo";
 import { Onboarding } from "./Onboarding";
+import { Settings } from "./Settings";
 import { formatDays, formatWakeTime, isComplete, loadProfile } from "./profile-store";
 import { formatTimeShort, useNow } from "./useNow";
 import { VoiceOrb } from "./VoiceOrb";
@@ -56,6 +57,7 @@ export default function WakeApp() {
   const [mounted, setMounted] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [editing, setEditing] = useState(false);
+  const [settings, setSettings] = useState(false);
 
   useEffect(() => {
     setProfile(loadProfile());
@@ -84,9 +86,27 @@ export default function WakeApp() {
     );
   }
 
+  if (settings) {
+    return (
+      <Settings
+        initial={profile}
+        onBack={(p) => {
+          setProfile(p);
+          setSettings(false);
+        }}
+        onReset={() => {
+          // Demo reset: storage is already wiped; dropping the profile re-runs first-time onboarding.
+          setSettings(false);
+          setEditing(false);
+          setProfile(null);
+        }}
+      />
+    );
+  }
+
   return (
     <ConversationProvider>
-      <WakeInner profile={profile} onEdit={() => setEditing(true)} />
+      <WakeInner profile={profile} onEdit={() => setSettings(true)} />
     </ConversationProvider>
   );
 }
@@ -170,13 +190,28 @@ function WakeInner({ profile, onEdit }: { profile: Profile; onEdit: () => void }
     return `Snooze set for ${minutes} minutes. The alarm rings again at ${time}. Say one short goodbye line in your personality; the call ends in a few seconds.`;
   }
 
+  // Per-user voice, plus Spanish when the profile asks for it (agent allows these overrides).
+  function sessionOverrides(vars: Record<string, string> | undefined) {
+    const voiceId = vars?.voice_id ? String(vars.voice_id) : undefined;
+    if (vars?.language === "es") {
+      return {
+        tts: { voiceId, modelId: "eleven_flash_v2_5" as const },
+        agent: {
+          language: "es" as const,
+          firstMessage: "¡Buenos días, {{name}}! Soy {{coach_name}}. ¿Ya estás despierto o necesitas un segundo?",
+        },
+      };
+    }
+    return voiceId ? { tts: { voiceId } } : undefined;
+  }
+
   function startConversation() {
     startSession({
       agentId: AGENT_ID,
       connectionType: connectionTypeRef.current,
       dynamicVariables: dynVarsRef.current,
       clientTools: { ...planTools.clientTools, snooze: snoozeTool },
-      overrides: dynVarsRef.current?.voice_id ? { tts: { voiceId: String(dynVarsRef.current.voice_id) } } : undefined,
+      overrides: sessionOverrides(dynVarsRef.current),
     });
   }
 
@@ -450,9 +485,9 @@ function WakeInner({ profile, onEdit }: { profile: Profile; onEdit: () => void }
     <Screen sun={phase === "armed" ? 0.5 : 0.3}>
       <Header
         right={
-          <button onClick={onEdit} className="btn-text" aria-label="Edit setup">
+          <button onClick={onEdit} className="btn-text" aria-label="Settings">
             <Settings2 className="size-5" aria-hidden />
-            <span className="hidden sm:inline">Edit setup</span>
+            <span className="hidden sm:inline">Settings</span>
           </button>
         }
       />

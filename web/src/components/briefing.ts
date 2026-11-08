@@ -12,6 +12,8 @@ export const BRIEFING_KEYS = [
   "personality",
   "about_me",
   "voice_id",
+  "language",
+  "language_name",
 ] as const;
 
 export type BriefingKey = (typeof BRIEFING_KEYS)[number];
@@ -41,6 +43,8 @@ export function fallbackBriefing(): Briefing {
     personality: "Warm and playful, like a friend who already has coffee.",
     about_me: "Nothing shared yet.",
     voice_id: "cgSgspJ2msm6clMCkdW9",
+    language: "en",
+    language_name: "English",
     source: "fallback",
   };
 }

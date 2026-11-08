@@ -210,7 +210,9 @@ export function Onboarding({ initial, onDone, onCancel }: Props) {
 
 // ---------------- Pieces ----------------
 
-function Question({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
+// `embedded` drops the headline so the same step body can sit inside a Settings card.
+function Question({ title, sub, embedded, children }: { title: string; sub?: string; embedded?: boolean; children: React.ReactNode }) {
+  if (embedded) return <div className="flex flex-col gap-3">{children}</div>;
   return (
     <>
       <div className="flex flex-col gap-3">
@@ -302,7 +304,9 @@ function PhoneStep({ profile, update }: { profile: Profile; update: (p: Partial<
   );
 }
 
-const PRESET_TIMES = ["06:00", "06:30", "07:00", "07:30", "08:00"];
+export type StepProps = { profile: Profile; update: (p: Partial<Profile>) => void; embedded?: boolean };
+
+export const PRESET_TIMES = ["06:00", "06:30", "07:00", "07:30", "08:00"];
 const DAYS = [
   { d: 1, l: "M", full: "Monday" },
   { d: 2, l: "T", full: "Tuesday" },
@@ -313,10 +317,10 @@ const DAYS = [
   { d: 0, l: "S", full: "Sunday" },
 ];
 
-function TimeStep({ profile, update }: { profile: Profile; update: (p: Partial<Profile>) => void }) {
+export function TimeStep({ profile, update, embedded }: StepProps) {
   const custom = !PRESET_TIMES.includes(profile.wakeTime);
   return (
-    <Question title="When do you need to be up?">
+    <Question title="When do you need to be up?" embedded={embedded}>
       <p className="tnum text-center font-display text-[clamp(3.5rem,14vw,6rem)] font-bold leading-none">
         {formatWakeTime(profile.wakeTime)}
       </p>
@@ -345,7 +349,7 @@ function TimeStep({ profile, update }: { profile: Profile; update: (p: Partial<P
       </div>
       <div className="mt-4 flex flex-col gap-2">
         <span className="label">Which days</span>
-        <div className="flex justify-between gap-1.5" role="group" aria-label="Days of the week">
+        <div className={`flex justify-between ${embedded ? "-mx-3 gap-1 sm:mx-0 sm:gap-1.5" : "gap-1.5"}`} role="group" aria-label="Days of the week">
           {DAYS.map(({ d, l, full }) => {
             const on = profile.days.includes(d);
             return (
@@ -368,17 +372,18 @@ function TimeStep({ profile, update }: { profile: Profile; update: (p: Partial<P
   );
 }
 
-function CalendarStep({
+export type CalendarChoice = "none" | "google" | "demo";
+
+export function CalendarStep({
   profile,
   update,
   choice,
   setChoice,
   onSkip,
-}: {
-  profile: Profile;
-  update: (p: Partial<Profile>) => void;
-  choice: "none" | "google" | "demo";
-  setChoice: (c: "none" | "google" | "demo") => void;
+  embedded,
+}: StepProps & {
+  choice: CalendarChoice;
+  setChoice: (c: CalendarChoice) => void;
   onSkip: () => void;
 }) {
   const open = choice === "google";
@@ -407,7 +412,7 @@ function CalendarStep({
   }
 
   return (
-    <Question title="Connect your calendar." sub={`${APP_NAME} reads today's events so the plan fits around real life.`}>
+    <Question title="Connect your calendar." sub={`${APP_NAME} reads today's events so the plan fits around real life.`} embedded={embedded}>
       <div className={`card ${open ? "card-selected" : "card-hover"} p-4`}>
         <div className="flex items-center gap-3">
           <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white">
@@ -514,11 +519,11 @@ const DUE: { v: Due; l: string }[] = [
   { v: "week", l: "This week" },
 ];
 
-function PrioritiesStep({ profile, update }: { profile: Profile; update: (p: Partial<Profile>) => void }) {
+export function PrioritiesStep({ profile, update, embedded }: StepProps) {
   const rows = profile.priorities.length ? profile.priorities : [{ title: "", due: "today" as Due }];
   const set = (next: Profile["priorities"]) => update({ priorities: next });
   return (
-    <Question title="What has to get done this week?" sub="Up to three. Your coach schedules them into the day.">
+    <Question title="What has to get done this week?" sub="Up to three. Your coach schedules them into the day." embedded={embedded}>
       <div className="flex flex-col gap-3">
         {rows.map((row, i) => (
           <div key={i} className="card flex flex-col gap-3 p-3">
@@ -531,7 +536,7 @@ function PrioritiesStep({ profile, update }: { profile: Profile; update: (p: Par
                 className="field min-h-[48px] text-base"
                 placeholder={["Finish the stats problem set", "Email Professor Lee", "Gym"][i] ?? "Task"}
                 maxLength={120}
-                autoFocus={i === rows.length - 1 && !row.title}
+                autoFocus={!embedded && i === rows.length - 1 && !row.title}
                 value={row.title}
                 onChange={(e) => set(rows.map((r, j) => (j === i ? { ...r, title: e.target.value } : r)))}
               />
@@ -571,7 +576,7 @@ function PrioritiesStep({ profile, update }: { profile: Profile; update: (p: Par
   );
 }
 
-function VoiceStep({ profile, update }: { profile: Profile; update: (p: Partial<Profile>) => void }) {
+export function VoiceStep({ profile, update, embedded }: StepProps) {
   const [playing, setPlaying] = useState<VoicePresetId | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -607,19 +612,24 @@ function VoiceStep({ profile, update }: { profile: Profile; update: (p: Partial<
   }
 
   return (
-    <Question title="Pick your wake-up voice." sub="Tap play to hear them. This is who wakes you up.">
+    <Question title="Pick your wake-up voice." sub="Tap play to hear them. This is who wakes you up." embedded={embedded}>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Coach voice">
         {VOICE_PRESETS.map((v) => {
           const on = profile.voice === v.id;
           const isPlaying = playing === v.id;
+          // The Signature voice (made with ElevenLabs Voice Design) is featured full-width above the 2x2 grid.
+          const featured = v.id === "signature";
           return (
-            <div key={v.id} className={`card ${on ? "card-selected" : "card-hover"} flex items-center gap-3 p-3`}>
+            <div
+              key={v.id}
+              className={`card ${on ? "card-selected" : "card-hover"} flex items-center gap-3 p-3 ${featured ? "sm:col-span-2 sm:gap-4 sm:p-4" : ""}`}
+            >
               <button
                 type="button"
                 aria-label={isPlaying ? `Pause ${v.label} sample` : `Play ${v.label} sample`}
                 aria-pressed={isPlaying}
                 onClick={() => toggle(v.id)}
-                className="grid size-12 shrink-0 place-items-center rounded-full text-black transition-transform active:scale-95"
+                className={`grid shrink-0 place-items-center rounded-full text-black transition-transform active:scale-95 ${featured ? "size-14" : "size-12"}`}
                 style={{ background: "var(--brand)" }}
               >
                 {isPlaying ? <Pause className="size-5" aria-hidden /> : <Play className="ml-0.5 size-5" aria-hidden />}
@@ -631,9 +641,15 @@ function VoiceStep({ profile, update }: { profile: Profile; update: (p: Partial<
                 onClick={() => choose(v.id)}
                 className="flex min-h-[48px] min-w-0 flex-1 flex-col items-start justify-center text-left"
               >
-                <span className="flex items-center gap-2 font-display text-lg font-bold">
+                <span className={`flex flex-wrap items-center gap-2 font-display font-bold ${featured ? "text-xl" : "text-lg"}`}>
                   {v.label}
                   {on && <Check className="size-4 text-[var(--gold)]" aria-hidden />}
+                  {featured && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-[var(--line-strong)] bg-black/40 px-2 py-0.5 font-sans text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--gold)]">
+                      <Sparkles className="size-3" aria-hidden />
+                      Custom designed
+                    </span>
+                  )}
                 </span>
                 <span className="text-sm text-[var(--muted)]">{v.tagline}</span>
               </button>
@@ -654,13 +670,57 @@ function VoiceStep({ profile, update }: { profile: Profile; update: (p: Partial<
           placeholder={getPreset(profile.voice).defaultName}
         />
       </div>
+      <div className="mt-2 flex flex-col gap-2">
+        <span className="label" id="language-label">
+          Language they speak
+        </span>
+        <LanguageToggle value={profile.language} onChange={(language) => update({ language })} labelledBy="language-label" />
+      </div>
     </Question>
+  );
+}
+
+const LANGUAGES: { v: Profile["language"]; l: string }[] = [
+  { v: "en", l: "English" },
+  { v: "es", l: "Español" },
+];
+
+/** Two-option segmented control for the coach's language. Shared by onboarding and Settings. */
+export function LanguageToggle({
+  value,
+  onChange,
+  labelledBy,
+}: {
+  value: Profile["language"] | undefined;
+  onChange: (v: Profile["language"]) => void;
+  labelledBy: string;
+}) {
+  const current = value === "es" ? "es" : "en";
+  return (
+    <div className="flex gap-2" role="radiogroup" aria-labelledby={labelledBy}>
+      {LANGUAGES.map((o) => {
+        const on = current === o.v;
+        return (
+          <button
+            key={o.v}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            lang={o.v}
+            className={`chip flex-1 ${on ? "chip-on" : ""}`}
+            onClick={() => onChange(o.v)}
+          >
+            {o.l}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
 type Source = "chatgpt" | "claude" | "self" | null;
 
-function ContextStep({ profile, update }: { profile: Profile; update: (p: Partial<Profile>) => void }) {
+export function ContextStep({ profile, update, embedded }: StepProps) {
   const [source, setSource] = useState<Source>(profile.aboutMe ? "self" : null);
   const [copied, setCopied] = useState(false);
   const coach = profile.coachName || getPreset(profile.voice).defaultName;
@@ -682,7 +742,7 @@ function ContextStep({ profile, update }: { profile: Profile; update: (p: Partia
   ];
 
   return (
-    <Question title={`Give ${coach} the backstory.`} sub="It's a paste, not a login. Nothing leaves your device until the call.">
+    <Question title={`Give ${coach} the backstory.`} sub="It's a paste, not a login. Nothing leaves your device until the call." embedded={embedded}>
       <div className="grid grid-cols-3 gap-2 sm:gap-3" role="radiogroup" aria-label="Where your context comes from">
         {cards.map((c) => {
           const on = source === c.id;
@@ -736,7 +796,7 @@ function ContextStep({ profile, update }: { profile: Profile; update: (p: Partia
             id="aboutMe"
             className="field min-h-[140px] resize-y text-base leading-relaxed sm:min-h-[180px]"
             maxLength={4000}
-            autoFocus
+            autoFocus={!embedded}
             placeholder={
               source === "self"
                 ? "Junior at SDSU, marketing major. 8 AM stats on Mon/Wed. Working on a hackathon app. Trying to hit the gym before class."
