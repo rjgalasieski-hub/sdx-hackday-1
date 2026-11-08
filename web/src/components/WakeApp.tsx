@@ -1,5 +1,6 @@
 "use client";
 
+import { PlanCard, usePlanTools, warmPlanner } from "./planTools";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 import type { ConnectionType, DisconnectionDetails, MessagePayload } from "@elevenlabs/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -77,6 +78,7 @@ function WakeInner() {
   const dynVarsRef = useRef<Record<string, string>>({});
   const endedByUserRef = useRef(false);
 
+  const planTools = usePlanTools();
   const conversation = useConversation({
     onConnect: () => {
       connectedOnceRef.current = true;
@@ -119,6 +121,7 @@ function WakeInner() {
       agentId: AGENT_ID,
       connectionType: connectionTypeRef.current,
       dynamicVariables: dynVarsRef.current,
+      clientTools: planTools.clientTools,
       overrides: dynVarsRef.current?.voice_id ? { tts: { voiceId: String(dynVarsRef.current.voice_id) } } : undefined,
     });
   }
@@ -170,8 +173,9 @@ function WakeInner() {
         setAudioWarning("Browser blocked the alarm sound. Tap anywhere to unmute.");
       }
     }
-    // Prefetch so "I'm up" can start the conversation instantly.
+    // Prefetch so "I'm up" can start the conversation instantly, and wake the Daytona sandbox.
     void loadBriefing();
+    warmPlanner();
   }, [loadBriefing]);
 
   async function requestMic() {
@@ -273,6 +277,7 @@ function WakeInner() {
     endSession();
     setConvError(null);
     setLastLine(null);
+    planTools.reset();
     setPhase("idle");
   }
 
@@ -346,6 +351,7 @@ function WakeInner() {
             </ErrorBox>
           )}
 
+          <PlanCard plan={planTools.plan} planning={planTools.planning} />
           <BriefingCards briefing={briefing} details={details} />
           {usingFallback && (
             <p className="text-sm text-[var(--muted)]">
@@ -369,6 +375,7 @@ function WakeInner() {
           <div className="sun-rise" aria-hidden />
           <h2 className="text-[clamp(2.5rem,7vw,5rem)] font-extralight">You&apos;re up.</h2>
           <p className="text-[clamp(1.1rem,2.4vw,1.6rem)] text-[var(--muted)]">Go have a great day.</p>
+          <PlanCard plan={planTools.plan} planning={false} />
           <button onClick={reset} className="btn-primary">
             Set another alarm
           </button>
