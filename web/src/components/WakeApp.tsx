@@ -154,12 +154,28 @@ function WakeInner({ profile, onEdit }: { profile: Profile; onEdit: () => void }
 
   // ---- ElevenLabs session ----
 
+  // Client tool: the coach can grant a snooze (after pushing back). Ends the call a few seconds
+  // later, so the goodbye line finishes, and re-arms the alarm. Capped at 10 minutes.
+  function snoozeTool(params: { minutes?: number }) {
+    const minutes = Math.min(10, Math.max(1, Math.round(Number(params?.minutes) || 5)));
+    const at = Date.now() + minutes * 60_000;
+    setTimeout(() => {
+      endedByUserRef.current = true;
+      endSession();
+      setLastLine(null);
+      setAlarmAt(at);
+      setPhase("armed");
+    }, 5000);
+    const time = new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    return `Snooze set for ${minutes} minutes. The alarm rings again at ${time}. Say one short goodbye line in your personality; the call ends in a few seconds.`;
+  }
+
   function startConversation() {
     startSession({
       agentId: AGENT_ID,
       connectionType: connectionTypeRef.current,
       dynamicVariables: dynVarsRef.current,
-      clientTools: planTools.clientTools,
+      clientTools: { ...planTools.clientTools, snooze: snoozeTool },
       overrides: dynVarsRef.current?.voice_id ? { tts: { voiceId: String(dynVarsRef.current.voice_id) } } : undefined,
     });
   }
