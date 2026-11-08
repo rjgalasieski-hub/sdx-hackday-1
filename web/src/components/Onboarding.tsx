@@ -24,6 +24,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Logo, Wordmark } from "./Logo";
 import { APP_NAME } from "./config";
+import { connectGoogleCalendar, disconnectGoogle, googleConfigured, isGoogleConnected } from "./googleCalendar";
 import {
   emptyProfile,
   formatDays,
@@ -36,8 +37,8 @@ import {
 } from "./profile-store";
 
 type StepId = "welcome" | "name" | "phone" | "time" | "calendar" | "priorities" | "voice" | "context" | "done";
-const STEPS: StepId[] = ["welcome", "name", "phone", "time", "calendar", "priorities", "voice", "context", "done"];
-const COUNTED: StepId[] = ["name", "phone", "time", "calendar", "priorities", "voice", "context"];
+const STEPS: StepId[] = ["welcome", "name", "time", "calendar", "priorities", "voice", "context", "done"];
+const COUNTED: StepId[] = ["name", "time", "calendar", "priorities", "voice", "context"];
 
 const CONTEXT_PROMPT =
   "Tell me everything you know about me: my goals, schedule, school, work, habits, and what I'm working on. Plain text.";
@@ -157,7 +158,7 @@ export function Onboarding({ initial, onDone, onCancel }: Props) {
                 maxLength={40}
                 value={profile.name}
                 onChange={(e) => update({ name: e.target.value })}
-                placeholder="RJ"
+                placeholder="Your first name"
               />
             </Question>
           )}
@@ -230,7 +231,7 @@ function Welcome() {
           Your mornings, <span className="brand-text">handled.</span>
         </h1>
         <p className="max-w-md text-[clamp(1.05rem,1.8vw,1.25rem)] leading-relaxed text-[var(--muted)]">
-          {APP_NAME} calls you at your wake-up time, plans your day with you, and doesn&apos;t let you snooze.
+          {APP_NAME} wakes you up with a coach that talks, plans your day with you, and doesn&apos;t let you snooze.
         </p>
       </div>
 
@@ -248,7 +249,7 @@ function Welcome() {
         </div>
         <div className="mt-4 flex flex-col gap-2 text-[0.95rem] leading-snug">
           <p className="fade-in-1 rounded-2xl rounded-tl-sm bg-[var(--surface-2)] px-3 py-2">
-            Morning, RJ. It&apos;s 7:30, 64 and clear. You awake?
+            Morning! It&apos;s 7:30, 64 and clear. You awake?
           </p>
           <p className="fade-in-2 self-end rounded-2xl rounded-tr-sm px-3 py-2 text-black" style={{ background: "var(--brand)" }}>
             Give me five more minutes
@@ -381,6 +382,30 @@ function CalendarStep({
   onSkip: () => void;
 }) {
   const open = choice === "google";
+  const [gState, setGState] = useState<"idle" | "connecting" | "connected" | "error">(() =>
+    typeof window !== "undefined" && isGoogleConnected() ? "connected" : "idle",
+  );
+  const [gMsg, setGMsg] = useState("");
+  const [showIcal, setShowIcal] = useState(Boolean(profile.icalUrl) || !googleConfigured());
+
+  async function connect() {
+    setChoice("google");
+    if (!googleConfigured()) {
+      setShowIcal(true);
+      return;
+    }
+    setGState("connecting");
+    setGMsg("");
+    const r = await connectGoogleCalendar();
+    if (r.ok) {
+      setGState("connected");
+      setGMsg(r.count === 0 ? "Connected. Nothing on today's calendar yet." : `Connected. ${r.count} event${r.count === 1 ? "" : "s"} today.`);
+    } else {
+      setGState("error");
+      setGMsg(r.error ?? "Couldn't connect.");
+    }
+  }
+
   return (
     <Question title="Connect your calendar." sub={`${APP_NAME} reads today's events so the plan fits around real life.`}>
       <div className={`card ${open ? "card-selected" : "card-hover"} p-4`}>
@@ -390,19 +415,50 @@ function CalendarStep({
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-medium">Google Calendar</p>
-            <p className="text-sm text-[var(--muted)]">Read-only, via your secret iCal link</p>
+            <p className="text-sm text-[var(--muted)]">
+              {gState === "connected" ? gMsg || "Connected. Read-only." : "Read-only. Sign in with Google."}
+            </p>
           </div>
-          {!open ? (
-            <button type="button" className="btn-ghost shrink-0 px-4 py-2 text-sm" onClick={() => setChoice("google")}>
-              Connect
-            </button>
-          ) : (
+          {gState === "connected" ? (
             <span className="flex items-center gap-1 text-sm text-[var(--gold)]">
-              <Check className="size-4" aria-hidden /> Selected
+              <Check className="size-4" aria-hidden /> Connected
             </span>
+          ) : (
+            <button
+              type="button"
+              className="btn-ghost shrink-0 px-4 py-2 text-sm"
+              onClick={connect}
+              disabled={gState === "connecting"}
+              aria-busy={gState === "connecting"}
+            >
+              {gState === "connecting" ? "Connecting…" : "Connect"}
+            </button>
           )}
         </div>
-        {open && (
+        {gState === "error" && (
+          <p className="mt-3 text-sm text-[#ff8a65]" role="alert">
+            {gMsg} You can paste your iCal link instead.
+          </p>
+        )}
+        {gState === "connected" && (
+          <button
+            type="button"
+            className="mt-3 text-sm text-[var(--muted)] underline underline-offset-4"
+            onClick={() => {
+              disconnectGoogle();
+              setGState("idle");
+              setGMsg("");
+            }}
+          >
+            Disconnect
+          </button>
+        )}
+        {open && gState !== "connected" && !showIcal && (
+          <button type="button" className="mt-3 text-sm text-[var(--muted)] underline underline-offset-4" onClick={() => setShowIcal(true)}>
+            Or paste your iCal link instead
+          </button>
+        )}
+        {open && gState !== "connected" && (showIcal || gState === "error") && (
           <div className="fade-in mt-4 flex flex-col gap-3">
             <label htmlFor="ical" className="label">
               Secret address in iCal format
@@ -411,7 +467,6 @@ function CalendarStep({
               id="ical"
               className="field text-base"
               inputMode="url"
-              autoFocus
               placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
               value={profile.icalUrl ?? ""}
               onChange={(e) => update({ icalUrl: e.target.value.trim() })}
@@ -435,6 +490,7 @@ function CalendarStep({
         className={`card ${choice === "demo" ? "card-selected" : "card-hover"} flex items-center gap-3 p-4`}
         onClick={() => {
           setChoice("demo");
+          disconnectGoogle();
           update({ icalUrl: "" });
           onSkip();
         }}
@@ -551,7 +607,7 @@ function VoiceStep({ profile, update }: { profile: Profile; update: (p: Partial<
   }
 
   return (
-    <Question title="Pick your wake-up voice." sub="Tap play to hear them. This is who calls you.">
+    <Question title="Pick your wake-up voice." sub="Tap play to hear them. This is who wakes you up.">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Coach voice">
         {VOICE_PRESETS.map((v) => {
           const on = profile.voice === v.id;
@@ -699,9 +755,8 @@ function ContextStep({ profile, update }: { profile: Profile; update: (p: Partia
 function DoneStep({ profile, calendarChoice }: { profile: Profile; calendarChoice: "none" | "google" | "demo" }) {
   const preset = getPreset(profile.voice);
   const rows: [string, string][] = [
-    ["Calls", formatPhone(profile.phone) || "Not set"],
     ["Wake time", `${formatWakeTime(profile.wakeTime)} · ${formatDays(profile.days)}`],
-    ["Calendar", calendarChoice === "google" && profile.icalUrl ? "Google Calendar connected" : "Demo calendar"],
+    ["Calendar", calendarChoice === "google" && (profile.icalUrl || isGoogleConnected()) ? "Google Calendar connected" : "Demo calendar"],
     ["Priorities", profile.priorities.filter((p) => p.title.trim()).length ? `${profile.priorities.filter((p) => p.title.trim()).length} this week` : "None yet"],
     ["Coach", `${profile.coachName || preset.defaultName} · ${preset.label} voice`],
   ];

@@ -19,7 +19,7 @@ export type Profile = {
 const FILE = path.join(process.cwd(), "data", "profile.json");
 
 export const DEFAULT_PROFILE: Profile = {
-  name: (process.env.USER_NAME ?? "").trim() || "RJ",
+  name: "",
   phone: "",
   wakeTime: "07:30",
   days: [1, 2, 3, 4, 5],

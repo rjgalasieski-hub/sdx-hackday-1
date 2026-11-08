@@ -340,7 +340,7 @@ function demoDay(dayKey: string): CalEvent[] {
   });
   return [
     ev("Marketing 370 lecture", 10, 0, 11, 15, "Adams Humanities 2108"),
-    ev("SDx meeting", 13, 0, 14, 0, "Conrad Prebys Aztec Student Union"),
+    ev("Club meeting", 13, 0, 14, 0, "Conrad Prebys Aztec Student Union"),
     ev("Market research paper due", 17, 0, 17, 0, "Canvas"),
     ev("Gym", 19, 0, 20, 0, "ARC"),
   ];

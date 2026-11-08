@@ -81,13 +81,17 @@ function profileTasks(p: Profile): Task[] {
   return p.priorities.map((t) => ({ title: t.title, due: addDaysToKey(today, offset[t.due]), priority: "high" as const }));
 }
 
-export async function getBriefing(clientProfile?: Partial<Profile> | null): Promise<Briefing> {
+export async function getBriefing(clientProfile?: Partial<Profile> | null, googleEvents?: CalEvent[] | null): Promise<Briefing> {
   const profile = await getProfile(clientProfile);
   const preset = getPreset(profile.voice);
-  const [weather, calendar] = await Promise.all([getWeather(), getCalendar(profile.icalUrl)]);
-  const tasks = [...profileTasks(profile), ...getTasks().tasks];
+  const [weather, calendar] = await Promise.all([
+    getWeather(),
+    googleEvents ? Promise.resolve({ events: googleEvents }) : getCalendar(profile.icalUrl),
+  ]);
+  const mine = profileTasks(profile);
+  const tasks = mine.length ? mine : getTasks().tasks;
   return {
-    name: profile.name,
+    name: profile.name || "there",
     date: spokenDate(),
     weather_summary: weatherSummary(weather),
     calendar_summary: calendarSummary(calendar.events),

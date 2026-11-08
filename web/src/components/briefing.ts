@@ -1,5 +1,6 @@
 // Client-side helpers for the briefing. Keys match CONTRACT.md exactly.
 import { BRIEFING_TIMEOUT_MS } from "./config";
+import { getGoogleEvents } from "./googleCalendar";
 
 export const BRIEFING_KEYS = [
   "name",
@@ -59,7 +60,7 @@ export async function fetchBriefing(): Promise<BriefingResult> {
       cache: "no-store",
       signal: controller.signal,
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ profile }),
+      body: JSON.stringify({ profile, calendarEvents: await getGoogleEvents() }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = (await res.json()) as Partial<Record<string, unknown>>;

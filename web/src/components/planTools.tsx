@@ -3,6 +3,7 @@
 // build_plan and lock_plan). The planner itself runs server-side in a Daytona sandbox.
 import { CalendarClock, CalendarPlus, Loader2, Lock } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { getGoogleEvents } from "./googleCalendar";
 
 export type Block = { title: string; start: string; end: string; kind: "routine" | "event" | "deadline" | "task" };
 export type PlanState = { blocks: Block[]; unscheduled: string[]; source: string; ms: number; locked: boolean; note?: string };
@@ -19,11 +20,15 @@ export function savedProfile(): unknown {
 }
 
 export function warmPlanner() {
-  void fetch("/api/plan", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ profile: savedProfile() }),
-  }).catch(() => {});
+  void getGoogleEvents()
+    .then((calendarEvents) =>
+      fetch("/api/plan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ profile: savedProfile(), calendarEvents }),
+      }),
+    )
+    .catch(() => {});
 }
 
 export function usePlanTools() {
@@ -44,7 +49,11 @@ export function usePlanTools() {
           const res = await fetch("/api/plan", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ adjustments: Array.isArray(params?.adjustments) ? params.adjustments : [], profile: savedProfile() }),
+            body: JSON.stringify({
+              adjustments: Array.isArray(params?.adjustments) ? params.adjustments : [],
+              profile: savedProfile(),
+              calendarEvents: await getGoogleEvents(),
+            }),
           });
           const data = await res.json();
           const next: PlanState = { blocks: data.blocks, unscheduled: data.unscheduled, source: data.source, ms: data.ms, locked: false };
