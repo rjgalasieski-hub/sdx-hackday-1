@@ -14,6 +14,7 @@ export type Profile = {
   voice: VoicePresetId;
   coachName: string;
   aboutMe: string; // pasted from ChatGPT / Claude ("tell me everything you know about me") or typed
+  language?: "en" | "es"; // optional so older saved setups still load
 };
 
 const FILE = path.join(process.cwd(), "data", "profile.json");
@@ -28,6 +29,7 @@ export const DEFAULT_PROFILE: Profile = {
   voice: DEFAULT_VOICE,
   coachName: getPreset(DEFAULT_VOICE).defaultName,
   aboutMe: "",
+  language: "en",
 };
 
 const clip = (s: unknown, max: number) => (typeof s === "string" ? s.trim().slice(0, max) : "");
@@ -50,6 +52,7 @@ export function sanitizeProfile(input: Partial<Profile>): Profile {
     voice,
     coachName: clip(input.coachName, 24) || getPreset(voice).defaultName,
     aboutMe: clip(input.aboutMe, 4000),
+    language: input.language === "es" ? "es" : "en",
   };
 }
 

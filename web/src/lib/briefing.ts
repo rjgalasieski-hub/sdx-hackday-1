@@ -15,6 +15,8 @@ export type Briefing = {
   personality: string;
   about_me: string;
   voice_id: string;
+  language: string;
+  language_name: string;
 };
 
 const NUM_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
@@ -100,5 +102,7 @@ export async function getBriefing(clientProfile?: Partial<Profile> | null, googl
     personality: preset.personality,
     about_me: profile.aboutMe || "Nothing shared yet.",
     voice_id: preset.voiceId,
+    language: profile.language ?? "en",
+    language_name: profile.language === "es" ? "Spanish" : "English",
   };
 }

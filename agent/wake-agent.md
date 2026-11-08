@@ -48,3 +48,6 @@ Eager turns, speculative turn on, backchannels (mm-hmm, yeah, okay) don't interr
 
 ## Knowledge base
 - Wake Morning Playbook (agent/knowledge/morning-playbook.md), usage mode: prompt
+
+## Languages
+English (eleven_flash_v2) by default. Profile language "es" → session overrides: agent.language es, Spanish first message, tts model eleven_flash_v2_5. Prompt: speak only in {{language_name}}.
