@@ -7,6 +7,7 @@ import type { ConnectionType, DisconnectionDetails, MessagePayload } from "@elev
 import { AlarmClock, Mic, MicOff, Settings2, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlarmSound, createAudioContext, unlockAudio } from "./alarm-sound";
+import { haptic } from "./haptics";
 import {
   fallbackBriefing,
   fetchBriefing,
@@ -58,6 +59,8 @@ export default function WakeApp() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [editing, setEditing] = useState(false);
   const [settings, setSettings] = useState(false);
+  // Settings slides in from the right (its button lives top-right); coming Back, Home returns from the left.
+  const [fromSettings, setFromSettings] = useState(false);
 
   useEffect(() => {
     setProfile(loadProfile());
@@ -80,6 +83,7 @@ export default function WakeApp() {
         onDone={(p) => {
           setProfile(p);
           setEditing(false);
+          setFromSettings(false);
         }}
         onCancel={editing ? () => setEditing(false) : undefined}
       />
@@ -93,6 +97,7 @@ export default function WakeApp() {
         onBack={(p) => {
           setProfile(p);
           setSettings(false);
+          setFromSettings(true);
         }}
         onReset={() => {
           // Demo reset: storage is already wiped; dropping the profile re-runs first-time onboarding.
@@ -106,12 +111,12 @@ export default function WakeApp() {
 
   return (
     <ConversationProvider>
-      <WakeInner profile={profile} onEdit={() => setSettings(true)} />
+      <WakeInner profile={profile} onEdit={() => setSettings(true)} enterClass={fromSettings ? "screen-enter-back" : ""} />
     </ConversationProvider>
   );
 }
 
-function WakeInner({ profile, onEdit }: { profile: Profile; onEdit: () => void }) {
+function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onEdit: () => void; enterClass?: string }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [alarmAt, setAlarmAt] = useState<number | null>(null);
   const [mic, setMic] = useState<MicState>("unknown");
@@ -328,6 +333,13 @@ function WakeInner({ profile, onEdit }: { profile: Profile; onEdit: () => void }
   // Stop sound on unmount.
   useEffect(() => () => alarmRef.current?.stop(), []);
 
+  // Snooze set: the only talking -> armed path. One tap on the same frame the armed card appears.
+  const prevPhaseRef = useRef<Phase>(phase);
+  useEffect(() => {
+    if (prevPhaseRef.current === "talking" && phase === "armed") haptic();
+    prevPhaseRef.current = phase;
+  }, [phase]);
+
   async function wakeUp() {
     alarmRef.current?.stop();
     void audioCtxRef.current?.resume();
@@ -388,6 +400,8 @@ function WakeInner({ profile, onEdit }: { profile: Profile; onEdit: () => void }
 
   if (phase === "talking") {
     const live = status === "connected" && !convError;
+    const planning = planTools.planning;
+    // Status is never blank: speaking > planning > listening while connected.
     const label = convError
       ? "Not connected"
       : preparing
@@ -395,26 +409,32 @@ function WakeInner({ profile, onEdit }: { profile: Profile; onEdit: () => void }
         : status === "connected"
           ? isSpeaking
             ? "Speaking"
-            : "Listening"
+            : planning
+              ? "Planning"
+              : "Listening"
           : status === "error"
             ? "Not connected"
             : "Connecting";
-    const hasPlan = !!planTools.plan || planTools.planning;
+    const subline = live ? (isSpeaking ? "Speaking" : planning ? "Planning your day" : "Listening, go ahead and talk") : label;
+    const hasPlan = !!planTools.plan || planning;
     return (
       <Screen sun={0.7}>
-        <Header right={<StatusPill label={label} live={live} speaking={live && isSpeaking} />} />
+        <Header sticky right={<StatusPill label={label} live={live} speaking={live && isSpeaking} planning={live && planning} />} />
         <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center gap-6 px-4 pb-10 pt-2 sm:px-8">
           <div className={`flex flex-col items-center gap-4 ${hasPlan ? "pt-0" : "pt-4"}`}>
             <VoiceOrb
               active={status === "connected"}
               speaking={status === "connected" && isSpeaking}
+              planning={status === "connected" && planning}
               getInputVolume={conversation.getInputVolume}
               getOutputVolume={conversation.getOutputVolume}
             />
             <div className="text-center">
               <p className="font-display text-[clamp(1.5rem,3.5vw,2.25rem)] font-bold leading-tight">{coachName}</p>
               <p className="text-[var(--muted)]">
-                {live ? (isSpeaking ? "Speaking" : "Listening, go ahead and talk") : label}
+                <span key={subline} className="fade-in-fast inline-block">
+                  {subline}
+                </span>
               </p>
             </div>
             {lastLine && !convError && (
@@ -482,7 +502,7 @@ function WakeInner({ profile, onEdit }: { profile: Profile; onEdit: () => void }
 
   // idle + armed = Home
   return (
-    <Screen sun={phase === "armed" ? 0.5 : 0.3}>
+    <Screen sun={phase === "armed" ? 0.5 : 0.3} className={enterClass}>
       <Header
         right={
           <button onClick={onEdit} className="btn-text" aria-label="Settings">
@@ -542,31 +562,32 @@ function WakeInner({ profile, onEdit }: { profile: Profile; onEdit: () => void }
 
 // ---- Pieces ----
 
-function Screen({ children, sun = 0.3 }: { children: React.ReactNode; sun?: number }) {
+function Screen({ children, sun = 0.3, className = "" }: { children: React.ReactNode; sun?: number; className?: string }) {
   return (
-    <div className="sunrise flex min-h-dvh flex-col" style={{ "--sun": sun } as React.CSSProperties}>
+    <div className={`sunrise flex min-h-dvh flex-col ${className}`} style={{ "--sun": sun } as React.CSSProperties}>
       {children}
     </div>
   );
 }
 
-function Header({ right }: { right?: React.ReactNode }) {
+/** `sticky` turns the bar translucent and pins it; only used where content scrolls under it (talking screen). */
+function Header({ right, sticky = false }: { right?: React.ReactNode; sticky?: boolean }) {
   return (
-    <header className="flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 sm:px-8">
+    <header className={`${sticky ? "glass-bar" : ""} flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 sm:px-8`}>
       <Wordmark size={32} />
       {right}
     </header>
   );
 }
 
-function StatusPill({ label, live, speaking }: { label: string; live: boolean; speaking: boolean }) {
+function StatusPill({ label, live, speaking, planning = false }: { label: string; live: boolean; speaking: boolean; planning?: boolean }) {
+  const dot = !live ? "var(--faint)" : speaking ? "var(--amber)" : planning ? "var(--gold)" : "var(--ok)";
   return (
     <div className="flex items-center gap-2 rounded-full border border-[var(--line-strong)] bg-[var(--surface)] px-3.5 py-2 text-sm">
-      <span
-        className={`size-2.5 rounded-full ${live ? "pulse-dot" : ""}`}
-        style={{ background: live ? (speaking ? "var(--amber)" : "var(--ok)") : "var(--faint)" }}
-      />
-      {label}
+      <span className={`size-2.5 rounded-full ${live ? "pulse-dot" : ""}`} style={{ background: dot, transition: "background 300ms ease" }} />
+      <span key={label} className="fade-in-fast inline-block">
+        {label}
+      </span>
     </div>
   );
 }
@@ -665,7 +686,13 @@ function Ringing({
         <p className="text-sm font-medium uppercase tracking-[0.3em] text-[var(--gold)]">{coachName} is calling</p>
         <Clock size="lg" />
       </div>
-      <button onClick={onWake} className="btn-wake font-display">
+      <button
+        onClick={() => {
+          haptic();
+          onWake();
+        }}
+        className="btn-wake font-display"
+      >
         I&apos;m up
       </button>
       {warning && <p className="text-lg text-[var(--muted)]">{warning}</p>}

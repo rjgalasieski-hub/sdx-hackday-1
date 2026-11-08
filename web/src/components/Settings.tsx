@@ -122,8 +122,8 @@ export function Settings({ initial, onBack, onReset }: Props) {
   const next = nextAlarm(profile.wakeTime, profile.days);
 
   return (
-    <div className="sunrise flex min-h-dvh flex-col" style={{ "--sun": 0.25 } as React.CSSProperties}>
-      <header className="sticky top-0 z-10 border-b border-[var(--line)] bg-black/85 backdrop-blur-md">
+    <div className="sunrise screen-enter flex min-h-dvh flex-col" style={{ "--sun": 0.25 } as React.CSSProperties}>
+      <header className="glass-bar">
         <div className="mx-auto flex w-full max-w-[640px] items-center gap-2 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 sm:px-0">
           <button type="button" onClick={back} className="btn-text -ml-2 pl-2" aria-label="Back to home">
             <ArrowLeft className="size-5" aria-hidden />

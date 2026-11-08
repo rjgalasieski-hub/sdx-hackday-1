@@ -2,8 +2,9 @@
 // Client tools the ElevenLabs agent calls mid-conversation (registered on the agent as
 // build_plan and lock_plan). The planner itself runs server-side in a Daytona sandbox.
 import { CalendarClock, CalendarPlus, Loader2, Lock } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getGoogleEvents } from "./googleCalendar";
+import { haptic } from "./haptics";
 
 export type Block = { title: string; start: string; end: string; kind: "routine" | "event" | "deadline" | "task" };
 export type PlanState = { blocks: Block[]; unscheduled: string[]; source: string; ms: number; locked: boolean; note?: string };
@@ -104,8 +105,14 @@ function clock(t: string) {
 const KIND_LABEL: Record<Block["kind"], string> = { routine: "Routine", event: "Event", deadline: "Due", task: "Task" };
 
 export function PlanCard({ plan, planning }: { plan: PlanState | null; planning: boolean }) {
-  if (!plan && !planning) return null;
   const locked = !!plan?.locked;
+  // One tap the moment the card turns locked (not on a card that mounts already locked, e.g. the Done screen).
+  const wasLocked = useRef(locked);
+  useEffect(() => {
+    if (locked && !wasLocked.current) haptic();
+    wasLocked.current = locked;
+  }, [locked]);
+  if (!plan && !planning) return null;
   return (
     <section
       className={`card w-full max-w-2xl overflow-hidden ${locked ? "card-selected" : ""}`}
@@ -124,7 +131,7 @@ export function PlanCard({ plan, planning }: { plan: PlanState | null; planning:
       </div>
       {plan?.note && <p className="border-b border-[var(--line)] px-5 py-3 text-[var(--muted)]">{plan.note}</p>}
       {planning && !plan && (
-        <ul className="flex flex-col gap-3 p-5" aria-hidden>
+        <ul className="fade-in-fast flex flex-col gap-3 p-5" aria-hidden>
           {[0, 1, 2, 3].map((i) => (
             <li key={i} className="flex items-center gap-4">
               <span className="h-4 w-16 animate-pulse rounded bg-white/10" />
@@ -135,7 +142,7 @@ export function PlanCard({ plan, planning }: { plan: PlanState | null; planning:
       )}
       <ol className="flex flex-col divide-y divide-[var(--line)]">
         {plan?.blocks.map((b, i) => (
-          <li key={`${b.title}-${i}`} className="flex items-center gap-3 px-5 py-3 sm:gap-4">
+          <li key={`${b.title}-${i}`} className="fade-in-fast flex items-center gap-3 px-5 py-3 sm:gap-4">
             <span className="tnum w-[4.75rem] shrink-0 text-sm text-[var(--gold)] sm:text-base">{clock(b.start)}</span>
             <span className="min-w-0 flex-1">
               <span className={`block leading-snug ${b.kind === "deadline" ? "font-semibold text-[var(--gold)]" : ""}`}>

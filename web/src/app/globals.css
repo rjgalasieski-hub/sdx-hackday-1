@@ -40,9 +40,21 @@ body {
   min-height: 100dvh;
 }
 
+/* Tracking is size-specific: display headings tighten as they grow, small display text stays near 0. */
 .font-display {
   font-family: var(--font-display), var(--font-body), system-ui, sans-serif;
   letter-spacing: -0.02em;
+}
+h1.font-display,
+h2.font-display {
+  letter-spacing: -0.025em;
+}
+.font-display.text-lg,
+.font-display.text-xl {
+  letter-spacing: -0.01em;
+}
+.tnum.font-display {
+  letter-spacing: -0.01em; /* mono digits dislike tight tracking */
 }
 .font-mono,
 .tnum {
@@ -80,6 +92,7 @@ button:disabled {
   position: relative;
   isolation: isolate;
   background: var(--background);
+  overflow-x: clip; /* slide-in transforms never widen the page; clip (not hidden) keeps sticky headers working */
 }
 .sunrise::before {
   content: "";
@@ -118,17 +131,26 @@ button:disabled {
   font-weight: 600;
   -webkit-tap-highlight-color: transparent;
   transition:
-    transform 150ms var(--ease-out),
+    transform 100ms ease-out,
     background 200ms ease,
     box-shadow 200ms ease,
     opacity 200ms ease,
     border-color 200ms ease;
 }
+/* Feedback lives on the press (pointer-down), never only on hover. */
 .btn-primary:active,
 .btn-ghost:active,
 .btn-end:active,
-.btn-wake:active {
+.btn-wake:active,
+.btn-text:active,
+.press:active {
   transform: scale(0.97);
+}
+.btn-text:active {
+  color: var(--foreground);
+}
+.press {
+  transition: transform 100ms ease-out;
 }
 
 .btn-primary {
@@ -238,6 +260,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 20px;
   transition:
+    transform 100ms ease-out,
     border-color 200ms ease,
     background 200ms ease,
     box-shadow 200ms ease;
@@ -245,6 +268,12 @@ button:disabled {
 .card-hover:hover {
   background: var(--surface-2);
   border-color: var(--line-strong);
+}
+button.card:active,
+label.card:active,
+a.card:active {
+  transform: scale(0.98);
+  background: var(--surface-2);
 }
 .card-selected {
   border-color: transparent;
@@ -267,7 +296,9 @@ button:disabled {
   color: var(--muted);
   background: var(--surface);
   border: 1px solid var(--line-strong);
+  -webkit-tap-highlight-color: transparent;
   transition:
+    transform 100ms ease-out,
     background 200ms ease,
     color 200ms ease,
     border-color 200ms ease;
@@ -275,6 +306,9 @@ button:disabled {
 .chip:hover {
   color: var(--foreground);
   border-color: rgba(255, 255, 255, 0.3);
+}
+.chip:active {
+  transform: scale(0.95);
 }
 .chip-on {
   color: #140a00;
@@ -300,12 +334,47 @@ button:disabled {
 
 }
 
-/* ---- Step transitions ---- */
+/* ---- Translucent chrome (sticky headers content scrolls under) ---- */
+.glass-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.72);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+}
+/* Scroll-edge fade instead of a hard 1px divider. */
+.glass-bar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 18px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), transparent);
+}
+
+/* ---- Step / screen transitions ----
+   Forward enters from the right; Back brings the previous screen in from the left,
+   so the path is symmetric. Screens (Settings) use the same pair, slightly longer. */
 .step-enter {
   animation: step-in 220ms var(--ease-out) both;
 }
+.step-enter-back {
+  animation: step-in-back 220ms var(--ease-out) both;
+}
+.screen-enter {
+  animation: step-in 260ms var(--ease-out) both;
+}
+.screen-enter-back {
+  animation: step-in-back 260ms var(--ease-out) both;
+}
 .fade-in {
   animation: fade-in 400ms var(--ease-out) both;
+}
+.fade-in-fast {
+  animation: fade-in 180ms ease-out both;
 }
 .fade-in-1 {
   animation: fade-in 500ms var(--ease-out) 300ms both;
@@ -327,6 +396,9 @@ button:disabled {
 }
 .orb-listening {
   opacity: 0.85;
+}
+.orb-planning {
+  opacity: 0.92;
 }
 .orb-speaking {
   opacity: 1;
@@ -373,6 +445,16 @@ button:disabled {
     transform: translateX(0);
   }
 }
+@keyframes step-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -410,16 +492,82 @@ button:disabled {
     animation: none;
   }
   .step-enter,
+  .step-enter-back,
+  .screen-enter,
+  .screen-enter-back,
   .fade-in,
   .fade-in-1,
   .fade-in-2,
   .fade-in-3,
+  .fade-in-fast,
   .rise {
-    animation: fade-in 200ms ease both;
+    animation: fade-only 200ms ease both;
     transform: none;
+  }
+  .btn-primary:active,
+  .btn-ghost:active,
+  .btn-end:active,
+  .btn-wake:active,
+  .btn-text:active,
+  .press:active,
+  .chip:active,
+  button.card:active,
+  label.card:active,
+  a.card:active {
+    transform: none;
+    opacity: 0.8;
   }
   .sunrise::before,
   .progress > span {
     transition: none;
+  }
+}
+@keyframes fade-only {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Frosted chrome goes solid when the user asks for less transparency. */
+@media (prefers-reduced-transparency: reduce) {
+  .glass-bar {
+    background: #000;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .glass-bar::after {
+    display: none;
+  }
+}
+
+/* High contrast: solid surfaces, visible borders, brighter secondary text. */
+@media (prefers-contrast: more) {
+  :root {
+    --muted: rgba(255, 255, 255, 0.82);
+    --faint: rgba(255, 255, 255, 0.64);
+    --line: rgba(255, 255, 255, 0.32);
+    --line-strong: rgba(255, 255, 255, 0.55);
+  }
+  .glass-bar {
+    background: #000;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .glass-bar::after {
+    display: none;
+  }
+  .card,
+  .chip,
+  .field,
+  .btn-ghost {
+    border-color: var(--line-strong);
+  }
+  .btn-text {
+    color: var(--foreground);
   }
 }

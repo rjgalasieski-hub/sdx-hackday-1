@@ -53,6 +53,9 @@ export function Onboarding({ initial, onDone, onCancel }: Props) {
   const editing = !!initial;
   const [profile, setProfile] = useState<Profile>(() => initial ?? emptyProfile());
   const [stepIdx, setStepIdx] = useState(editing ? 1 : 0);
+  // Which way the last navigation went: forward slides the new step in from the right,
+  // Back brings the previous one in from the left (symmetric path).
+  const [dir, setDir] = useState<1 | -1>(1);
   const [calendarChoice, setCalendarChoice] = useState<"none" | "google" | "demo">(() =>
     initial?.icalUrl ? "google" : initial ? "demo" : "none",
   );
@@ -86,6 +89,7 @@ export function Onboarding({ initial, onDone, onCancel }: Props) {
   function next() {
     if (!canContinue) return;
     storeProfile(profile);
+    setDir(1);
     if (stepIdx < STEPS.length - 1) setStepIdx((i) => i + 1);
   }
   function back() {
@@ -93,6 +97,7 @@ export function Onboarding({ initial, onDone, onCancel }: Props) {
       onCancel?.();
       return;
     }
+    setDir(-1);
     setStepIdx((i) => Math.max(0, i - 1));
   }
   function finish() {
@@ -107,8 +112,9 @@ export function Onboarding({ initial, onDone, onCancel }: Props) {
 
   return (
     <div className="sunrise flex min-h-dvh flex-col" style={{ "--sun": sun } as React.CSSProperties}>
-      {/* Top bar */}
-      <header className="mx-auto flex w-full max-w-[560px] items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-2 sm:px-0">
+      {/* Top bar: translucent and sticky once there is a progress bar for content to scroll under */}
+      <header className={showChrome ? "glass-bar" : ""}>
+        <div className="mx-auto flex w-full max-w-[560px] items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-2 sm:px-0">
         {showChrome ? (
           <>
             <button type="button" onClick={back} className="btn-text -ml-2 pl-2" aria-label="Back">
@@ -132,11 +138,12 @@ export function Onboarding({ initial, onDone, onCancel }: Props) {
             )}
           </div>
         )}
+        </div>
       </header>
 
       <form
         key={step}
-        className="step-enter mx-auto flex w-full max-w-[560px] flex-1 flex-col px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6 sm:px-0 sm:pt-10"
+        className={`${dir === 1 ? "step-enter" : "step-enter-back"} mx-auto flex w-full max-w-[560px] flex-1 flex-col px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6 sm:px-0 sm:pt-10`}
         onSubmit={(e) => {
           e.preventDefault();
           if (step === "done") finish();
@@ -639,7 +646,7 @@ export function VoiceStep({ profile, update, embedded }: StepProps) {
                 role="radio"
                 aria-checked={on}
                 onClick={() => choose(v.id)}
-                className="flex min-h-[48px] min-w-0 flex-1 flex-col items-start justify-center text-left"
+                className="press flex min-h-[48px] min-w-0 flex-1 flex-col items-start justify-center text-left"
               >
                 <span className={`flex flex-wrap items-center gap-2 font-display font-bold ${featured ? "text-xl" : "text-lg"}`}>
                   {v.label}
