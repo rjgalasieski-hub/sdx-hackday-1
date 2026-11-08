@@ -7,6 +7,10 @@ export const BRIEFING_KEYS = [
   "weather_summary",
   "calendar_summary",
   "tasks_summary",
+  "coach_name",
+  "personality",
+  "about_me",
+  "voice_id",
 ] as const;
 
 export type BriefingKey = (typeof BRIEFING_KEYS)[number];
@@ -32,6 +36,10 @@ export function fallbackBriefing(): Briefing {
       "You have a class at 10 AM, lunch with the team at noon, and a project sync at 3 PM.",
     tasks_summary:
       "Your top priorities are finishing the hackathon demo, replying to two emails, and getting a workout in.",
+    coach_name: "Sunny",
+    personality: "Warm and playful, like a friend who already has coffee.",
+    about_me: "Nothing shared yet.",
+    voice_id: "cgSgspJ2msm6clMCkdW9",
     source: "fallback",
   };
 }

@@ -119,6 +119,7 @@ function WakeInner() {
       agentId: AGENT_ID,
       connectionType: connectionTypeRef.current,
       dynamicVariables: dynVarsRef.current,
+      overrides: dynVarsRef.current?.voice_id ? { tts: { voiceId: String(dynVarsRef.current.voice_id) } } : undefined,
     });
   }
 

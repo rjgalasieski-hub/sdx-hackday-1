@@ -1,7 +1,9 @@
 import { getCalendar, type CalEvent } from "./calendar";
 import { getTasks, type Task } from "./tasks";
 import { getWeather, type Weather } from "./weather";
-import { laDateKey, speakable, spokenDate, spokenDue, spokenTime } from "./time";
+import { getProfile, type Profile } from "./profile";
+import { getPreset } from "./voices";
+import { addDaysToKey, laDateKey, speakable, spokenDate, spokenDue, spokenTime } from "./time";
 
 export type Briefing = {
   name: string;
@@ -9,6 +11,10 @@ export type Briefing = {
   weather_summary: string;
   calendar_summary: string;
   tasks_summary: string;
+  coach_name: string;
+  personality: string;
+  about_me: string;
+  voice_id: string;
 };
 
 const NUM_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
@@ -68,14 +74,27 @@ function lowerFirst(s: string): string {
   return /^[A-Z][a-z]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s;
 }
 
+// Priorities typed in onboarding go first, then the task file.
+function profileTasks(p: Profile): Task[] {
+  const today = laDateKey();
+  const offset = { today: 0, tomorrow: 1, week: 5 } as const;
+  return p.priorities.map((t) => ({ title: t.title, due: addDaysToKey(today, offset[t.due]), priority: "high" as const }));
+}
+
 export async function getBriefing(): Promise<Briefing> {
-  const [weather, calendar] = await Promise.all([getWeather(), getCalendar()]);
-  const tasks = getTasks();
+  const profile = await getProfile();
+  const preset = getPreset(profile.voice);
+  const [weather, calendar] = await Promise.all([getWeather(), getCalendar(profile.icalUrl)]);
+  const tasks = [...profileTasks(profile), ...getTasks().tasks];
   return {
-    name: (process.env.USER_NAME ?? "").trim() || "RJ",
+    name: profile.name,
     date: spokenDate(),
     weather_summary: weatherSummary(weather),
     calendar_summary: calendarSummary(calendar.events),
-    tasks_summary: tasksSummary(tasks.tasks),
+    tasks_summary: tasksSummary(tasks),
+    coach_name: profile.coachName,
+    personality: preset.personality,
+    about_me: profile.aboutMe || "Nothing shared yet.",
+    voice_id: preset.voiceId,
   };
 }

@@ -346,9 +346,9 @@ function demoDay(dayKey: string): CalEvent[] {
   ];
 }
 
-export async function getCalendar(): Promise<CalendarResult> {
+export async function getCalendar(icalUrl?: string): Promise<CalendarResult> {
   const today = laDateKey();
-  const url = (process.env.ICAL_URL ?? "").trim();
+  const url = (icalUrl || process.env.ICAL_URL || "").trim().replace(/^webcal:\/\//i, "https://");
   if (!url) return { source: "demo", events: demoDay(today) };
   try {
     const res = await fetch(url.replace(/^webcal:\/\//i, "https://"), {

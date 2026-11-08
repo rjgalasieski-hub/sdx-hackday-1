@@ -18,3 +18,8 @@ Flow: user sets alarm on `/` → alarm rings at that time → user taps "I'm up"
 - `NEXT_PUBLIC_ELEVENLABS_AGENT_ID=` (set by RJ)
 - `ICAL_URL=` (optional; demo calendar if empty)
 - `USER_NAME=RJ`
+
+## Added 13:40
+- `GET/POST /api/profile` (src/lib/profile.ts). Profile is saved to `web/data/profile.json` (git-ignored, has the phone number).
+- `/api/briefing` now reads the profile and also returns `coach_name`, `personality`, `about_me`, `voice_id`. The client passes all of them as dynamic variables and `voice_id` as `overrides.tts.voiceId`.
+- Voice presets: `src/lib/voices.ts`, samples in `public/voices/`.
