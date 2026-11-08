@@ -83,7 +83,14 @@ export function planDay(input: PlanInput): PlanResult {
     if (e <= nowMin) continue; // already over
     fixed.push({ title: ev.title, s, e, kind: "event" });
   }
-  const events = fixed.filter((f) => f.kind === "event");
+  // Why a requested time can't be used, or "" if it's free: already past, after the day ends, or
+  // overlapping anything already placed (calendar events, the morning routine, other timed tasks).
+  const clash = (at: number, len: number) => {
+    if (at < nowMin) return "is already past";
+    if (at + len > dayEnd) return "runs past the end of the day";
+    const hit = fixed.find((f) => at < f.e && at + len > f.s);
+    return hit ? `hits ${hit.title}` : "";
+  };
 
   const flexible: PlanTask[] = [];
   const seen = new Set<string>();
@@ -95,9 +102,9 @@ export function planDay(input: PlanInput): PlanResult {
     if (adj?.remove) continue;
     const len = adj?.minutes ?? t.minutes ?? DEFAULT_MIN[t.priority];
     const at = adj?.start ? toMin(adj.start) : -1;
-    const hit = at >= 0 ? events.find((ev) => at < ev.e && at + len > ev.s) : undefined;
-    if (hit) conflicts.push(`${t.title} at ${toHHMM(at)} hits ${hit.title}, so I put it in the next open slot`);
-    if (at >= 0 && !hit) fixed.push({ title: t.title, s: at, e: at + len, kind: "task" });
+    const why = at >= 0 ? clash(at, len) : "";
+    if (why) conflicts.push(`${t.title} at ${toHHMM(at)} ${why}, so I put it in the next open slot`);
+    if (at >= 0 && !why) fixed.push({ title: t.title, s: at, e: at + len, kind: "task" });
     else flexible.push({ ...t, minutes: len });
   }
   // Adjustments that name something new ("add a nap at 2"): fixed if timed, otherwise a flexible task.
@@ -105,9 +112,9 @@ export function planDay(input: PlanInput): PlanResult {
     if (a.remove) continue;
     const at = a.start ? toMin(a.start) : -1;
     const len = a.minutes ?? (a.start ? 60 : 30);
-    const hit = at >= 0 ? events.find((ev) => at < ev.e && at + len > ev.s) : undefined;
-    if (hit) conflicts.push(`${a.title} at ${toHHMM(at)} hits ${hit.title}, so I put it in the next open slot`);
-    if (at >= 0 && !hit) fixed.push({ title: a.title, s: at, e: at + len, kind: "task" });
+    const why = at >= 0 ? clash(at, len) : "";
+    if (why) conflicts.push(`${a.title} at ${toHHMM(at)} ${why}, so I put it in the next open slot`);
+    if (at >= 0 && !why) fixed.push({ title: a.title, s: at, e: at + len, kind: "task" });
     else flexible.push({ title: a.title, priority: "medium", minutes: len });
   }
   flexible.sort((a, b) => RANK[a.priority] - RANK[b.priority]);

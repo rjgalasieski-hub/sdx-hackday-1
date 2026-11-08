@@ -105,12 +105,16 @@ export async function getBriefing(
     name: profile.name || "there",
     date: spokenDate(),
     weather_summary: weatherSummary(weather),
-    // Google was connected but its 1-hour token lapsed and there's no iCal to fall back on: say so
-    // instead of "wide open", so the coach never plans around a calendar it couldn't read.
+    // "Clear" only when a calendar was actually read. Disconnected, expired and failed reads each say
+    // so, so the coach never plans around a calendar it couldn't see.
     calendar_summary:
-      !googleEvents && calendarStatus === "expired" && !profile.icalUrl && !profile.demoCalendar
-        ? "I couldn't reach your Google Calendar this morning, so I don't have today's events. Ask what's on today."
-        : calendarSummary(calendar.events),
+      googleEvents || profile.icalUrl || profile.demoCalendar
+        ? calendarSummary(calendar.events)
+        : calendarStatus === "expired"
+          ? "Their Google Calendar connection needs a refresh, so you don't have today's events. Ask what's on today."
+          : calendarStatus === "error"
+            ? "You couldn't retrieve their calendar right now. Ask what's on today."
+            : "No calendar connected, so you don't know today's events. Ask what's on today.",
     tasks_summary: tasksSummary(tasks),
     coach_name: profile.coachName,
     personality: preset.personality,

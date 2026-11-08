@@ -1,6 +1,6 @@
 // Client-side helpers for the briefing. Keys match CONTRACT.md exactly.
 import { BRIEFING_TIMEOUT_MS } from "./config";
-import { getGoogleEvents, getGoogleWeekSummary, isGoogleExpired } from "./googleCalendar";
+import { getGoogleEvents, getGoogleWeekSummary, isGoogleConnected, isGoogleExpired } from "./googleCalendar";
 import type { Profile } from "@/lib/profile";
 import { getPreset } from "@/lib/voices";
 
@@ -68,7 +68,7 @@ export async function fetchBriefing(): Promise<BriefingResult> {
     getGoogleEvents(),
     new Promise<null>((r) => setTimeout(() => r(null), 4_000)),
   ]).catch(() => null);
-  const calendarStatus = calendarEvents ? "ok" : isGoogleExpired() ? "expired" : "none";
+  const calendarStatus = calendarEvents ? "ok" : isGoogleExpired() ? "expired" : isGoogleConnected() ? "error" : "disconnected";
   const weekSummary = calendarEvents
     ? await Promise.race([getGoogleWeekSummary(), new Promise<string>((r) => setTimeout(() => r(fallback.week_summary), 3_000))]).catch(
         () => fallback.week_summary,
