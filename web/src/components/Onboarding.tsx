@@ -40,6 +40,22 @@ type StepId = "welcome" | "name" | "phone" | "time" | "calendar" | "priorities" 
 const STEPS: StepId[] = ["welcome", "name", "time", "calendar", "priorities", "voice", "context", "done"];
 const COUNTED: StepId[] = ["name", "time", "calendar", "priorities", "voice", "context"];
 
+const TASKS_PROMPT =
+  "Tell me every task I need to complete this week, most important first. One per line, and say if it's due today or tomorrow. Plain text, no extra commentary.";
+
+// Turns a pasted AI answer into up to three priority rows: strips bullets/numbering, reads "today"/"tomorrow".
+function parseTasks(text: string): Profile["priorities"] {
+  return text
+    .split("\n")
+    .map((l) => l.replace(/^\s*(?:[-*\u2022]|\d+[.)])\s*/, "").replace(/\*\*/g, "").trim())
+    .filter((l) => l.length > 1)
+    .slice(0, 3)
+    .map((l) => ({
+      title: l.slice(0, 120),
+      due: /\btoday\b/i.test(l) ? "today" : /\btomorrow\b/i.test(l) ? "tomorrow" : "week",
+    }));
+}
+
 const CONTEXT_PROMPT =
   "Tell me everything you know about me: my goals, schedule, school, work, habits, and what I'm working on. Plain text.";
 
@@ -530,9 +546,71 @@ const DUE: { v: Due; l: string }[] = [
 export function PrioritiesStep({ profile, update, embedded }: StepProps) {
   const rows = profile.priorities.length ? profile.priorities : [{ title: "", due: "today" as Due }];
   const set = (next: Profile["priorities"]) => update({ priorities: next });
+  const [aiOpen, setAiOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [pasted, setPasted] = useState("");
+
+  async function copyPrompt() {
+    try {
+      await navigator.clipboard.writeText(TASKS_PROMPT);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard blocked: the prompt is visible to copy manually */
+    }
+  }
+
   return (
     <Question title="What has to get done this week?" sub="Up to three. Your coach schedules them into the day." embedded={embedded}>
       <div className="flex flex-col gap-3">
+        <div className="card flex flex-col gap-3 p-3">
+          <button
+            type="button"
+            className="flex items-center justify-between gap-2 text-left text-sm font-medium"
+            aria-expanded={aiOpen}
+            onClick={() => setAiOpen((o) => !o)}
+          >
+            <span className="flex items-center gap-2">
+              <Sparkles className="size-4 text-[var(--gold)]" aria-hidden />
+              Use ChatGPT or Claude? Pull your tasks in (optional)
+            </span>
+            <ChevronDown className={`size-4 shrink-0 transition-transform ${aiOpen ? "rotate-180" : ""}`} aria-hidden />
+          </button>
+          {aiOpen && (
+            <div className="fade-in flex flex-col gap-3">
+              <div className="flex items-start gap-2 rounded-xl bg-black/50 p-3">
+                <p className="flex-1 text-sm leading-relaxed text-[var(--muted)]">{TASKS_PROMPT}</p>
+                <button type="button" onClick={copyPrompt} className="btn-ghost shrink-0 px-3 py-2 text-sm" aria-live="polite">
+                  {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <label htmlFor="tasks-paste" className="sr-only">
+                Paste the answer
+              </label>
+              <textarea
+                id="tasks-paste"
+                className="field min-h-[96px] text-base"
+                placeholder="Paste the answer here"
+                maxLength={4000}
+                value={pasted}
+                onChange={(e) => setPasted(e.target.value)}
+              />
+              <button
+                type="button"
+                className="btn-ghost self-start"
+                disabled={!parseTasks(pasted).length}
+                onClick={() => {
+                  set(parseTasks(pasted));
+                  setPasted("");
+                  setAiOpen(false);
+                }}
+              >
+                <Plus className="size-4" aria-hidden /> Add my top three
+              </button>
+            </div>
+          )}
+        </div>
         {rows.map((row, i) => (
           <div key={i} className="card flex flex-col gap-3 p-3">
             <div className="flex items-center gap-2">
