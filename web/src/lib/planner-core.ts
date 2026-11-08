@@ -36,7 +36,8 @@ export function planDay(input: PlanInput): PlanResult {
     const shared = x.filter((w) => y.has(w)).length;
     return shared / Math.max(x.length, y.size);
   };
-  const titles = [...input.events.map((e) => e.title), ...input.tasks.map((t) => t.title)];
+  // Tasks first, so a tie ("gym") moves the gym task, never a "Gym class" calendar event.
+  const titles = [...input.tasks.map((t) => t.title), ...input.events.map((e) => e.title)];
   const bestTitle = (name: string) => {
     let best = "", top = 0;
     for (const t of titles) {
@@ -66,20 +67,23 @@ export function planDay(input: PlanInput): PlanResult {
   const fixed: Placed[] = [];
   if (wake + 30 > nowMin) fixed.push({ title: "Get up, get ready, breakfast", s: wake, e: wake + 30, kind: "routine" });
   const deadlines: Block[] = [];
+  const conflicts: string[] = [];
 
+  // Calendar events are real commitments: the plan never moves, shortens or drops them.
   for (const ev of input.events) {
     const adj = merged.get(ev.title);
-    if (adj?.remove) continue;
-    let s = toMin(ev.start), e = toMin(ev.end);
+    if (adj && (adj.remove || adj.start || adj.minutes)) {
+      conflicts.push(`${ev.title} is on your calendar, so it stays put. I can only plan around it`);
+    }
+    const s = toMin(ev.start), e = toMin(ev.end);
     if (e <= s) {
       deadlines.push({ title: ev.title, start: ev.start, end: ev.start, kind: "deadline" });
       continue;
     }
-    if (adj?.start) { const len = adj.minutes ?? e - s; s = toMin(adj.start); e = s + len; }
-    else if (adj?.minutes) e = s + adj.minutes;
     if (e <= nowMin) continue; // already over
     fixed.push({ title: ev.title, s, e, kind: "event" });
   }
+  const events = fixed.filter((f) => f.kind === "event");
 
   const flexible: PlanTask[] = [];
   const seen = new Set<string>();
@@ -90,18 +94,24 @@ export function planDay(input: PlanInput): PlanResult {
     const adj = merged.get(t.title);
     if (adj?.remove) continue;
     const len = adj?.minutes ?? t.minutes ?? DEFAULT_MIN[t.priority];
-    if (adj?.start) fixed.push({ title: t.title, s: toMin(adj.start), e: toMin(adj.start) + len, kind: "task" });
+    const at = adj?.start ? toMin(adj.start) : -1;
+    const hit = at >= 0 ? events.find((ev) => at < ev.e && at + len > ev.s) : undefined;
+    if (hit) conflicts.push(`${t.title} at ${toHHMM(at)} hits ${hit.title}, so I put it in the next open slot`);
+    if (at >= 0 && !hit) fixed.push({ title: t.title, s: at, e: at + len, kind: "task" });
     else flexible.push({ ...t, minutes: len });
   }
   // Adjustments that name something new ("add a nap at 2"): fixed if timed, otherwise a flexible task.
   for (const a of extras) {
     if (a.remove) continue;
-    if (a.start) fixed.push({ title: a.title, s: toMin(a.start), e: toMin(a.start) + (a.minutes ?? 60), kind: "task" });
-    else flexible.push({ title: a.title, priority: "medium", minutes: a.minutes ?? 30 });
+    const at = a.start ? toMin(a.start) : -1;
+    const len = a.minutes ?? (a.start ? 60 : 30);
+    const hit = at >= 0 ? events.find((ev) => at < ev.e && at + len > ev.s) : undefined;
+    if (hit) conflicts.push(`${a.title} at ${toHHMM(at)} hits ${hit.title}, so I put it in the next open slot`);
+    if (at >= 0 && !hit) fixed.push({ title: a.title, s: at, e: at + len, kind: "task" });
+    else flexible.push({ title: a.title, priority: "medium", minutes: len });
   }
   flexible.sort((a, b) => RANK[a.priority] - RANK[b.priority]);
 
-  const conflicts: string[] = [];
   const sortedFixed = fixed.slice().sort((a, b) => a.s - b.s);
   for (let i = 1; i < sortedFixed.length; i++) {
     const p = sortedFixed[i - 1], c = sortedFixed[i];

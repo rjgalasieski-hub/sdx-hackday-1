@@ -23,7 +23,7 @@ import { Clock } from "./Clock";
 import { AGENT_ID, APP_NAME, DEMO_DELAY_MS } from "./config";
 import { Logo, Wordmark } from "./Logo";
 import { Onboarding } from "./Onboarding";
-import { Settings } from "./Settings";
+import { Settings, nextAlarm } from "./Settings";
 import { formatDays, formatWakeTime, isComplete, loadProfile } from "./profile-store";
 import { formatTimeShort, useNow } from "./useNow";
 import { VoiceOrb } from "./VoiceOrb";
@@ -34,13 +34,9 @@ type MicState = "unknown" | "asking" | "granted" | "denied" | "unsupported";
 const MISSING_AGENT_MSG =
   "No ElevenLabs agent ID. Add NEXT_PUBLIC_ELEVENLABS_AGENT_ID to web/.env.local and restart the dev server.";
 
-function nextOccurrence(hhmm: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
-  if (!m) return null;
-  const d = new Date();
-  d.setHours(Number(m[1]), Number(m[2]), 0, 0);
-  if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
-  return d.getTime();
+// Same weekday-aware rule as Settings, so the Home line and the armed alarm always agree.
+function nextOccurrence(hhmm: string, days: number[]): number | null {
+  return nextAlarm(hhmm, days)?.getTime() ?? null;
 }
 
 function friendlyError(raw: string | undefined): string {
@@ -329,7 +325,7 @@ function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onE
   }
 
   function onSetAlarm() {
-    const at = nextOccurrence(profile.wakeTime);
+    const at = nextOccurrence(profile.wakeTime, profile.days);
     if (at) arm(at);
   }
 
@@ -648,11 +644,18 @@ function eventTime(e: CalendarEvent) {
 }
 
 /** "Rings 7:30 tomorrow" vs "Rings 7:30 today" from the saved wake time. */
-function ringsLine(wakeTime: string) {
-  const at = nextOccurrence(wakeTime);
-  if (at === null) return `Rings ${formatWakeTime(wakeTime)}`;
-  const sameDay = new Date(at).toDateString() === new Date().toDateString();
-  return `Rings ${formatWakeTime(wakeTime)} ${sameDay ? "today" : "tomorrow"}`;
+function ringsLine(wakeTime: string, days: number[]) {
+  const at = nextOccurrence(wakeTime, days);
+  if (at === null) return "No alarm days picked yet";
+  const d = new Date(at);
+  const tomorrow = new Date(Date.now() + 86_400_000);
+  const when =
+    d.toDateString() === new Date().toDateString()
+      ? "today"
+      : d.toDateString() === tomorrow.toDateString()
+        ? "tomorrow"
+        : d.toLocaleDateString("en-US", { weekday: "long" });
+  return `Rings ${formatWakeTime(wakeTime)} ${when}`;
 }
 
 /** One specific line built from real data; never the generic "calls at your wake time". */
@@ -663,7 +666,7 @@ function homeSubtitle(profile: Profile, details: Details | null, coachName: stri
   if (n) parts.push(`${n} ${n === 1 ? "priority" : "priorities"}`);
   if (ev) parts.push(`your ${eventTime(ev)} ${ev.title}`.replace("your All day", "your all-day"));
   const has = parts.length ? `${coachName} has ${parts.join(" and ")}.` : `${coachName} has your morning.`;
-  return `${has} ${ringsLine(profile.wakeTime)}.`;
+  return `${has} ${ringsLine(profile.wakeTime, profile.days)}.`;
 }
 
 function Glance({ details, coachName }: { details: Details | null; coachName: string }) {
