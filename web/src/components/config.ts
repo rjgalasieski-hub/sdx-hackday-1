@@ -9,4 +9,4 @@ export const AGENT_ID = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ?? "";
 export const DEMO_DELAY_MS = 10_000;
 
 // How long to wait for /api/briefing before falling back to local demo text.
-export const BRIEFING_TIMEOUT_MS = 6_000;
+export const BRIEFING_TIMEOUT_MS = 10_000;

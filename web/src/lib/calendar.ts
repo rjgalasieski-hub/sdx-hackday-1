@@ -360,7 +360,7 @@ export async function getCalendar(icalUrl?: string): Promise<CalendarResult> {
     if (!text.includes("BEGIN:VCALENDAR")) throw new Error("not an ICS feed");
     return { source: "ical", events: eventsForDay(parseIcs(text), today) };
   } catch (err) {
-    console.error("[calendar] falling back to demo:", err);
-    return { source: "demo", events: demoDay(today) };
+    console.error("[calendar] iCal fetch failed, no events:", err);
+    return { source: "ical", events: [] };
   }
 }

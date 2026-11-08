@@ -138,6 +138,8 @@ function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onE
   const retriedRef = useRef(false);
   const dynVarsRef = useRef<Record<string, string>>({});
   const endedByUserRef = useRef(false);
+  const snoozeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const snoozedThisCallRef = useRef(false);
 
   const coachName = profile.coachName || briefing.coach_name || APP_NAME;
 
@@ -182,9 +184,16 @@ function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onE
   // Client tool: the coach can grant a snooze (after pushing back). Ends the call a few seconds
   // later, so the goodbye line finishes, and re-arms the alarm. Capped at 10 minutes.
   function snoozeTool(params: { minutes?: number }) {
+    // One snooze per call, enforced here too in case the model forgets.
+    if (snoozeTimerRef.current || snoozedThisCallRef.current) {
+      return "Already snoozed once this morning. Don't grant another; get them up.";
+    }
+    snoozedThisCallRef.current = true;
     const minutes = Math.min(10, Math.max(1, Math.round(Number(params?.minutes) || 5)));
     const at = Date.now() + minutes * 60_000;
-    setTimeout(() => {
+    snoozeTimerRef.current = setTimeout(() => {
+      snoozeTimerRef.current = null;
+      if (endedByUserRef.current) return; // they ended the call themselves; don't re-arm
       endedByUserRef.current = true;
       endSession();
       setLastLine(null);
@@ -370,7 +379,13 @@ function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onE
     prevPhaseRef.current = phase;
   }, [phase]);
 
+  function cancelSnooze() {
+    if (snoozeTimerRef.current) clearTimeout(snoozeTimerRef.current);
+    snoozeTimerRef.current = null;
+  }
+
   async function wakeUp() {
+    endedByUserRef.current = false;
     alarmRef.current?.stop();
     void audioCtxRef.current?.resume();
     setAudioWarning(null);
@@ -388,10 +403,12 @@ function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onE
     setPreparing(true);
     const r = await (briefingPromiseRef.current ?? loadBriefing());
     setPreparing(false);
+    if (endedByUserRef.current) return; // they tapped End while the briefing was loading
     beginConversation(r.briefing);
   }
 
   function endTalk() {
+    cancelSnooze();
     endedByUserRef.current = true;
     endSession();
     setPhase("done");
@@ -404,6 +421,8 @@ function WakeInner({ profile, onEdit, enterClass = "" }: { profile: Profile; onE
   }
 
   function reset() {
+    cancelSnooze();
+    snoozedThisCallRef.current = false;
     endedByUserRef.current = true;
     endSession();
     setConvError(null);

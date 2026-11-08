@@ -63,6 +63,7 @@ export function usePlanTools() {
             }),
           });
           const data = await res.json();
+          if (!res.ok || !Array.isArray(data?.blocks)) throw new Error("bad planner response");
           const next: PlanState = { blocks: data.blocks, unscheduled: data.unscheduled, source: data.source, ms: data.ms, locked: false };
           planRef.current = next;
           setPlan(next);

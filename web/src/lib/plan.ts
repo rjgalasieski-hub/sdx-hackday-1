@@ -7,8 +7,9 @@ import { getTasks } from "./tasks";
 import { planDay, type Adjustment, type Block, type PlanInput, type PlanResult, type PlanTask } from "./planner-core";
 
 const LA = "America/Los_Angeles";
-const hhmm = (iso: string) =>
+const hhmm = (iso: string | Date) =>
   new Date(iso).toLocaleTimeString("en-GB", { timeZone: LA, hour: "2-digit", minute: "2-digit", hour12: false });
+const laDay = (d: string | Date) => new Date(d).toLocaleDateString("en-CA", { timeZone: LA });
 
 export async function buildPlanInput(
   adjustments: Adjustment[],
@@ -35,10 +36,15 @@ export async function buildPlanInput(
     return true;
   });
   const tasks = unique.length ? unique : profile.demoCalendar ? fileTasks.map((t) => ({ title: t.title, priority: t.priority })) : [];
+  const today = laDay(new Date());
   return {
     wake: profile.wakeTime,
+    now: hhmm(new Date()),
     dayEnd: "22:30",
-    events: calendar.events.filter((e) => !e.allDay).map((e) => ({ title: e.title, start: hhmm(e.start), end: hhmm(e.end) })),
+    // Today's timed events only (other days and all-day events never become blocks).
+    events: calendar.events
+      .filter((e) => !e.allDay && laDay(e.start) === today)
+      .map((e) => ({ title: e.title, start: hhmm(e.start), end: laDay(e.end) === today ? hhmm(e.end) : "23:59" })),
     tasks,
     adjustments,
   };
@@ -96,21 +102,21 @@ export async function makePlan(
   const t0 = Date.now();
   let result: PlanResult;
   let source: PlanResponse["source"] = "daytona";
+  // One Daytona attempt, raced against a deadline so a slow sandbox never stalls the live call
+  // (the agent's tool timeout is 25s). The identical function runs locally as the fallback.
   try {
     if (!process.env.DAYTONA_API_KEY) throw new Error("no DAYTONA_API_KEY");
-    result = await runInDaytona(input);
+    result = await Promise.race([
+      runInDaytona(input),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Daytona deadline")), 9000)),
+    ]);
   } catch (err) {
-    console.warn("[plan] Daytona failed, retrying once:", err);
-    sandboxPromise = null;
-    try {
-      result = await runInDaytona(input);
-    } catch (err2) {
-      console.warn("[plan] Daytona failed again, planning locally:", err2);
-      result = planDay(input);
-      source = "local";
-    }
+    console.warn("[plan] planning locally:", err);
+    if (!(err instanceof Error && err.message === "Daytona deadline")) sandboxPromise = null;
+    result = planDay(input);
+    source = "local";
   }
-  return { ...result, source, ms: Date.now() - t0, spoken: spokenPlan(result.blocks, result.unscheduled) };
+  return { ...result, source, ms: Date.now() - t0, spoken: spokenPlan(result) };
 }
 
 function spokenClock(t: string): string {
@@ -120,11 +126,23 @@ function spokenClock(t: string): string {
   return m ? `${h12}:${String(m).padStart(2, "0")} ${suffix}` : `${h12} ${suffix}`;
 }
 
-export function spokenPlan(blocks: Block[], unscheduled: string[]): string {
-  const parts = blocks.map((b) => (b.kind === "deadline" ? `${b.title} at ${spokenClock(b.start)}` : `${spokenClock(b.start)} ${b.title}`));
-  let text = `Plan: ${parts.join(", then ")}.`;
-  if (unscheduled.length) text += ` Couldn't fit: ${unscheduled.join(", ")}.`;
-  return text;
+// What a sharp assistant would say out loud: conflicts first, then what's next, the top task and
+// any deadline. The full plan is on screen, so never read every block.
+export function spokenPlan(r: PlanResult): string {
+  const work = r.blocks.filter((b) => b.kind !== "routine");
+  const next = work.find((b) => b.kind !== "deadline");
+  const top = work.find((b) => b.kind === "task" && b !== next);
+  const deadline = work.find((b) => b.kind === "deadline");
+  const parts: string[] = [];
+  if (r.conflicts.length) parts.push(`Heads up, ${r.conflicts[0]}.`);
+  if (next) parts.push(`Next up: ${next.title} at ${spokenClock(next.start)}.`);
+  if (top) parts.push(`${top.title} at ${spokenClock(top.start)}.`);
+  if (deadline) parts.push(/\bdue\b/i.test(deadline.title) ? `${deadline.title} at ${spokenClock(deadline.start)}.` : `${deadline.title} is due at ${spokenClock(deadline.start)}.`);
+  if (!parts.length) parts.push("The rest of today is open.");
+  const shown = [next, top, deadline].filter(Boolean).length;
+  if (work.length > shown) parts.push(`${work.length - shown} more on screen.`);
+  if (r.unscheduled.length) parts.push(`Couldn't fit ${r.unscheduled.join(" and ")} today.`);
+  return parts.join(" ");
 }
 
 const LOCK_FILE = path.join(process.cwd(), "data", "plan.json");

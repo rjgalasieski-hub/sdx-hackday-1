@@ -133,20 +133,19 @@ async function getJson(url: string): Promise<Record<string, unknown> | null> {
 }
 
 export async function fetchDetails(): Promise<Details> {
-  const [w, c, t] = await Promise.all([
-    getJson("/api/weather"),
-    getJson("/api/calendar"),
-    getJson("/api/tasks"),
-  ]);
+  // Only weather is shared; calendar and tasks come from THIS user's own data (their Google
+  // events and their saved priorities), never the server's sample day.
+  const [w, google] = await Promise.all([getJson("/api/weather"), getGoogleEvents()]);
   const details: Details = {};
   if (w && (typeof w.tempF === "number" || typeof w.conditions === "string")) {
     details.weather = w as WeatherDetail;
   }
-  if (c && Array.isArray(c.events)) {
-    details.events = (c.events as CalendarEvent[]).filter((e) => e && typeof e.title === "string");
-  }
-  if (t && Array.isArray(t.tasks)) {
-    details.tasks = (t.tasks as Task[]).filter((x) => x && typeof x.title === "string");
-  }
+  if (google) details.events = google as unknown as CalendarEvent[];
+  try {
+    const p = JSON.parse(localStorage.getItem("wake.profile") ?? "null") as { priorities?: { title: string; due: string }[] } | null;
+    if (p?.priorities?.length) {
+      details.tasks = p.priorities.map((x) => ({ title: x.title, due: x.due, priority: "high" })) as unknown as Task[];
+    }
+  } catch {}
   return details;
 }
